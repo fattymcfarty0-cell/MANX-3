@@ -1,0 +1,2167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MANX">
+<meta name="theme-color" content="#050508">
+<title>MANX CO, LTD — CLASSIC (REMAKE)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #050508; overflow: hidden;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    color: #c0c8d8; height: 100vh; height: 100dvh;
+    width: 100vw; position: fixed; touch-action: none;
+  }
+  #canvas-container { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #crosshair {
+    position: fixed; top: 50%; left: 50%;
+    width: 8px; height: 8px; margin: -4px 0 0 -4px;
+    border: 1px solid rgba(180,200,255,0.5); border-radius: 50%;
+    pointer-events: none; z-index: 10; display: none;
+  }
+  #prompt {
+    position: fixed; bottom: 18%; left: 50%; transform: translateX(-50%);
+    background: rgba(10,12,20,0.85); border: 1px solid #3a4a6a;
+    padding: 10px 22px; font-size: 14px; letter-spacing: 1px;
+    color: #a0b8ff; display: none; z-index: 10; pointer-events: none;
+  }
+  #prompt kbd {
+    background: #1a2030; border: 1px solid #4a5aff;
+    padding: 2px 7px; margin-right: 6px; font-size: 13px;
+  }
+  #hud {
+    position: fixed; top: 16px; left: 16px; font-size: 12px;
+    color: #5a6a80; z-index: 10; display: none; line-height: 1.6;
+  }
+  #fade {
+    position: fixed; inset: 0; background: #000; opacity: 0;
+    pointer-events: none; z-index: 20; transition: opacity 1.1s ease;
+  }
+  #fade.active { opacity: 1; }
+
+  /* Mobile controls */
+  #mobile-controls {
+    position: fixed; inset: 0; pointer-events: none; z-index: 15; display: none;
+  }
+  #mobile-controls.visible { display: block; }
+  .joy-zone {
+    position: absolute; bottom: 30px; width: 130px; height: 130px;
+    pointer-events: auto; touch-action: none;
+  }
+  #joy-left { left: 24px; }
+  #joy-right-disabled { right: 24px; }
+  .joy-base {
+    width: 110px; height: 110px; border-radius: 50%;
+    background: rgba(20,25,40,0.55); border: 2px solid rgba(100,120,180,0.35);
+    position: absolute; top: 10px; left: 10px;
+  }
+  .joy-stick {
+    width: 50px; height: 50px; border-radius: 50%;
+    background: rgba(90,120,220,0.55); border: 2px solid rgba(140,170,255,0.6);
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  }
+  .joy-stick.active { background: rgba(100,140,255,0.8); }
+  #interact-btn {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(30,40,70,0.7); border: 2px solid #4a5aff;
+    color: #a0b8ff; font-family: inherit; font-size: 20px; font-weight: bold;
+    display: none; align-items: center; justify-content: center;
+    pointer-events: auto; touch-action: none; z-index: 16;
+  }
+  #interact-btn.visible { display: flex; }
+
+  /* Intro */
+  #intro {
+    position: fixed; inset: 0; background: #050508; z-index: 40;
+    display: flex; flex-direction: column; justify-content: center;
+    align-items: center; text-align: center;
+  }
+  #intro h1 { color: #7a8cff; font-size: 22px; letter-spacing: 3px; margin-bottom: 12px; }
+  #intro p { color: #5a6a80; font-size: 14px; max-width: 360px; line-height: 1.6; margin-bottom: 28px; }
+  #intro button {
+    background: #1a2040; border: 1px solid #3a4aff; color: #a0b8ff;
+    padding: 12px 28px; font-family: inherit; font-size: 14px;
+    cursor: pointer; letter-spacing: 1px;
+  }
+  #intro button:hover { background: #222a50; }
+
+  /* Terminal layer */
+  #terminal-layer {
+    position: fixed; inset: 0; display: none; justify-content: center;
+    align-items: center; background: #0a0a12; z-index: 30;
+  }
+  .crt {
+    position: fixed; inset: 0;
+    background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.15) 50%),
+                linear-gradient(90deg, rgba(255,0,0,0.03), rgba(0,255,0,0.01), rgba(0,0,255,0.03));
+    background-size: 100% 3px, 4px 100%; pointer-events: none; z-index: 100;
+  }
+  .scanline {
+    position: fixed; top: 0; left: 0; width: 100%; height: 4px;
+    background: rgba(180,200,255,0.08); animation: scan 6s linear infinite;
+    z-index: 101; pointer-events: none;
+  }
+  @keyframes scan { 0%{top:-5%} 100%{top:105%} }
+
+  #screen {
+    width: 94vw; max-width: 920px; height: 90vh; max-height: 680px;
+    background: #0d0f18; border: 3px solid #2a3040;
+    box-shadow: 0 0 40px rgba(40,60,120,0.35), inset 0 0 60px rgba(0,0,0,0.7);
+    position: relative; overflow: hidden; display: flex; flex-direction: column;
+  }
+  #header {
+    background: #151822; border-bottom: 1px solid #2a3040;
+    padding: 8px 16px; display: flex; justify-content: space-between;
+    align-items: center; font-size: 13px; letter-spacing: 1px;
+  }
+  #header .logo { color: #7a8cff; font-weight: bold; }
+  #header .status { color: #5a6a80; }
+  #header .status span { color: #4aff9a; }
+  #main { flex: 1; padding: 18px 22px; overflow-y: auto; position: relative; }
+
+  .term-line { margin-bottom: 6px; white-space: pre-wrap; }
+  .term-line.system { color: #7a8cff; }
+  .term-line.warn { color: #ff9a4a; }
+  .term-line.error { color: #ff4a6a; }
+  .term-line.ghost { color: #4a5a70; font-style: italic; }
+
+  #choices { margin-top: 20px; display: none; }
+  .choice {
+    display: block; width: 100%; background: #151822; border: 1px solid #2a3040;
+    color: #a0b0c8; padding: 12px 16px; margin-bottom: 8px;
+    font-family: inherit; font-size: 14px; text-align: left; cursor: pointer;
+  }
+  .choice:hover { background: #1c2230; border-color: #4a5aff; color: #e0e8ff; }
+
+  #footer {
+    background: #10131c; border-top: 1px solid #2a3040;
+    padding: 6px 16px; font-size: 12px; color: #4a5a70;
+    display: flex; justify-content: space-between;
+  }
+
+  .abstract-logo { width: 72px; height: 72px; margin: 0 auto 18px; position: relative; }
+  .abstract-logo .shape { position: absolute; opacity: 0.85; }
+  .s1 { width:46px;height:46px;background:#3a5aff;clip-path:polygon(0 0,100% 20%,80% 100%,10% 70%);top:0;left:4px; }
+  .s2 { width:32px;height:32px;background:#ff3a9a;border-radius:50%;top:6px;right:0; }
+  .s3 { width:36px;height:50px;background:#ffcc33;clip-path:polygon(20% 0,100% 40%,70% 100%,0 60%);bottom:0;left:12px; }
+  .s4 { width:26px;height:26px;background:#6a3aff;clip-path:polygon(50% 0,100% 100%,0 100%);bottom:4px;right:6px; }
+
+  .glitch { animation: glitch 0.4s infinite; }
+  @keyframes glitch {
+    0% { text-shadow: 2px 0 #ff3a9a, -2px 0 #3a5aff; }
+    50% { text-shadow: 2px 0 #3a5aff, -2px 0 #ffcc33; }
+    100% { text-shadow: 2px 0 #ff3a9a, -2px 0 #3a5aff; }
+  }
+
+  #login-form { max-width: 340px; margin: 30px auto 0; }
+  #login-form input {
+    width: 100%; background: #0a0c14; border: 1px solid #2a3040;
+    color: #c0c8d8; padding: 10px 14px; font-family: inherit; font-size: 14px;
+    margin-bottom: 12px; outline: none;
+  }
+  #login-form input:focus { border-color: #4a5aff; }
+  #login-form button {
+    width: 100%; background: #1a2040; border: 1px solid #3a4aff;
+    color: #a0b8ff; padding: 12px; font-family: inherit; font-size: 14px;
+    cursor: pointer; letter-spacing: 1px;
+  }
+  #login-form button:hover { background: #222a50; }
+  .hidden { display: none !important; }
+
+  #termination {
+    position: absolute; inset: 0; background: #0a0508; z-index: 50;
+    display: none; flex-direction: column; justify-content: center;
+    align-items: center; text-align: center; padding: 40px;
+  }
+  #termination.active { display: flex; }
+  #termination .big {
+    font-size: 24px; color: #ff4a6a; letter-spacing: 2px; margin-bottom: 20px;
+  }
+  #termination .sub { font-size: 14px; color: #a0a8b8; line-height: 1.7; max-width: 400px; }
+  #termination .final { margin-top: 28px; font-size: 12px; color: #5a6478; letter-spacing: 1px; }
+
+  #back-btn {
+    display: none;
+    margin-top: 28px;
+    background: #151822;
+    border: 1px solid #3a4a6a;
+    color: #a0b0c8;
+    padding: 12px 24px;
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+  }
+  #back-btn:hover {
+    background: #1c2230;
+    border-color: #4a5aff;
+    color: #e0e8ff;
+  }
+  #back-btn.visible { display: block; }
+
+  /* Basement auth overlay */
+  #auth-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    display: none; justify-content: center; align-items: center;
+    background: rgba(0,0,0,0.75);
+  }
+  #auth-overlay.visible { display: flex; }
+  #auth-panel {
+    background: #0d0f18; border: 2px solid #3a4a6a;
+    padding: 28px 36px; max-width: 420px; width: 90%;
+    text-align: center; box-shadow: 0 0 40px rgba(40,60,120,0.4);
+  }
+  #auth-panel h2 {
+    color: #7a8cff; font-size: 16px; letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+  #auth-panel p {
+    color: #a0b0c8; font-size: 14px; line-height: 1.6; margin-bottom: 24px;
+  }
+  #auth-panel .auth-actions { display: flex; gap: 12px; justify-content: center; }
+  #auth-panel button {
+    background: #1a2040; border: 1px solid #3a4aff; color: #a0b8ff;
+    padding: 12px 24px; font-family: inherit; font-size: 14px;
+    letter-spacing: 1px; cursor: pointer;
+  }
+  #auth-panel button:hover { background: #222a50; }
+  #auth-panel button.cancel {
+    border-color: #4a3a4a; color: #a09090; background: #1a1218;
+  }
+
+  #ending-screen {
+    position: fixed; inset: 0; z-index: 200;
+    display: none; flex-direction: column;
+    justify-content: center; align-items: center;
+    text-align: center; padding: 40px;
+    background: #050508;
+  }
+  #ending-screen.visible { display: flex; }
+  #ending-screen .ending-title {
+    font-size: 26px; letter-spacing: 3px; margin-bottom: 18px;
+  }
+  #ending-screen.good .ending-title { color: #4aff9a; }
+  #ending-screen.bad .ending-title { color: #ff4a6a; }
+  #ending-screen .ending-sub {
+    color: #8a9ab0; font-size: 15px; line-height: 1.7; max-width: 420px;
+  }
+
+  #gameover-screen {
+    position: fixed; inset: 0; z-index: 190;
+    display: none; flex-direction: column;
+    justify-content: center; align-items: center;
+    text-align: center; padding: 40px;
+    background: rgba(5,5,8,0.92);
+  }
+  #gameover-screen.visible { display: flex; }
+  #gameover-screen h2 {
+    color: #ff4a6a; font-size: 28px; letter-spacing: 4px; margin-bottom: 14px;
+  }
+  #gameover-screen p {
+    color: #8a9ab0; font-size: 14px; margin-bottom: 24px;
+  }
+  #gameover-screen button {
+    background: #1a2040; border: 1px solid #3a4aff; color: #a0b8ff;
+    padding: 12px 28px; font-family: inherit; font-size: 14px;
+    letter-spacing: 1px; cursor: pointer;
+  }
+  #gameover-screen button:hover { background: #222a50; }
+
+  @media (pointer: coarse) {
+    #prompt kbd { display: none; }
+    #prompt::before { content: "TAP E  "; }
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div id="crosshair"></div>
+<div id="prompt"><kbd>E</kbd> Access Systems Interface</div>
+<div id="hud">NODE 0xA7F2 // SECURE<br>FLOOR 7 — SUBLEVEL</div>
+<div id="fade"></div>
+
+<div id="auth-overlay">
+  <div id="auth-panel">
+    <h2>SUBLEVEL GATEWAY</h2>
+    <p>AUTHORIZE BASEMENT FLOOR ACCESS</p>
+    <div class="auth-actions">
+      <button id="auth-confirm">CONFIRM</button>
+      <button id="auth-cancel" class="cancel">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<div id="ending-screen">
+  <div class="ending-title" id="ending-title"></div>
+  <div class="ending-sub" id="ending-sub"></div>
+</div>
+
+<div id="gameover-screen">
+  <h2>GAME OVER</h2>
+  <p>You were spotted by security.</p>
+  <button id="restart-basement-btn">RESTART BASEMENT</button>
+</div>
+
+<div id="mobile-controls">
+  <div class="joystick" id="joy-left"><div class="stick" id="stick-left"></div></div>
+  <button id="interact-btn" type="button">E</button>
+</div>
+<!-- TERMINAL -->
+<div id="terminal-layer">
+  <div class="crt"></div>
+  <div class="scanline"></div>
+  <div id="screen">
+    <div id="header">
+      <div class="logo">MANX CO, LTD</div>
+      <div class="status">NODE <span id="node-id">—</span> // SECURE</div>
+    </div>
+    <div id="main">
+      <div id="boot"></div>
+      <div id="login" class="hidden">
+        <div class="abstract-logo">
+          <div class="shape s1"></div><div class="shape s2"></div>
+          <div class="shape s3"></div><div class="shape s4"></div>
+        </div>
+        <div style="text-align:center;margin-bottom:8px;color:#7a8cff;letter-spacing:2px;">SYSTEMS INTERFACE v3.1.9</div>
+        <div style="text-align:center;font-size:12px;color:#4a5a70;margin-bottom:20px;">AUTHORIZED PERSONNEL ONLY</div>
+        <div id="login-form">
+          <input type="text" id="emp-id" placeholder="EMPLOYEE ID" maxlength="12" autocomplete="off">
+          <input type="password" id="access-key" placeholder="ACCESS KEY" maxlength="16" autocomplete="off">
+          <button id="login-btn">INITIATE SESSION</button>
+        </div>
+        <div id="login-msg" style="text-align:center;margin-top:14px;font-size:13px;color:#ff4a6a;"></div>
+      </div>
+      <div id="work" class="hidden">
+        <div id="output"></div>
+        <div id="choices"></div>
+        <button id="back-btn">> RETURN TO FACILITY</button>
+      </div>
+    </div>
+    <div id="footer">
+      <div class="metric">COMPLIANCE: <span id="compliance">100</span>%</div>
+      <div class="metric">DIRECTIVES: <span id="processed">0</span></div>
+      <div class="metric">SESSION: <span id="session-time">00:00</span></div>
+    </div>
+    <div id="termination">
+      <div class="big">EMPLOYMENT STATUS: TERMINATED</div>
+      <div class="sub">
+        Your compliance has fallen below the minimum threshold.<br><br>
+        Credentials revoked. Clear your station.<br>
+        Do not attempt to log in again.
+      </div>
+      <div class="final">PERIPHERAL COORDINATION WILL BE IN TOUCH</div>
+      <button id="term-back-btn" style="margin-top:28px;background:#151822;border:1px solid #3a4a6a;color:#a0b0c8;padding:12px 24px;font-family:inherit;font-size:14px;letter-spacing:1px;cursor:pointer;">&gt; RETURN TO FACILITY</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+const $ = id => document.getElementById(id);
+
+function loadThree(cb) {
+  if (window.THREE) { cb(); return; }
+  const urls = [
+    'https://unpkg.com/three@0.160.0/build/three.min.js',
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js'
+  ];
+  let i = 0;
+  function next() {
+    if (i >= urls.length) {
+      alert('Could not load 3D engine. Open this page in Safari on GitHub Pages with internet.');
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = urls[i++];
+    s.onload = () => cb();
+    s.onerror = () => next();
+    document.head.appendChild(s);
+  }
+  next();
+}
+
+
+const container = $('canvas-container');
+const promptEl = $('prompt');
+const crosshair = $('crosshair');
+const hud = $('hud');
+const fade = $('fade');
+const mobileControls = $('mobile-controls');
+const interactBtn = $('interact-btn');
+
+let scene, camera, renderer;
+let computerMesh, hatchMesh, atticHatchMesh, deadComputerMesh, noteMesh;
+let screwdriverMesh, ventMesh, secretExitMesh, secretPCMesh, corpseMesh, exitDoorMesh;
+let officeGroup, atticGroup, secretGroup, basementGroup;
+let currentRoom = 'office'; // 'office' | 'attic' | 'secret' | 'basement'
+let interactTarget = null;
+let deadPCReadCount = 0;
+let hasScrewdriver = false;
+let hasExitKey = false;
+let ventOpen = false;
+let jobComplete = false; // terminal done without bad ending → attic unlocks
+let promptLockUntil = 0;
+let canInteract = false, transitioned = false, pointerLocked = false;
+let basementGuards = [];
+let basementSpotted = false;
+const keys = { w:false, a:false, s:false, d:false };
+const clock = new THREE.Clock();
+const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+const PI_2 = Math.PI / 2;
+const mobile = { moveX:0, moveY:0, lookDX:0, lookDY:0 };
+let touchLookId = null, touchLookLast = null;
+
+function makeBox(w,h,d, color, x,y,z, parent) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.85 })
+  );
+  m.position.set(x,y,z);
+  parent.add(m);
+  return m;
+}
+
+function buildOffice(group) {
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x12141c, roughness: 0.9 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), floorMat);
+  floor.rotation.x = -Math.PI/2; group.add(floor);
+
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(20,20), new THREE.MeshStandardMaterial({color:0x0c0e14}));
+  ceil.rotation.x = Math.PI/2; ceil.position.y = 3.2; group.add(ceil);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x161820, roughness: 0.85 });
+  const back = new THREE.Mesh(new THREE.BoxGeometry(20,3.2,0.3), wallMat);
+  back.position.set(0,1.6,-5); group.add(back);
+  const front = new THREE.Mesh(new THREE.BoxGeometry(20,3.2,0.3), wallMat);
+  front.position.set(0,1.6,8); group.add(front);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.3,3.2,14), wallMat);
+  left.position.set(-6,1.6,1.5); group.add(left);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(0.3,3.2,14), wallMat);
+  right.position.set(6,1.6,1.5); group.add(right);
+
+  const deskMat = new THREE.MeshStandardMaterial({ color: 0x1c2030, roughness: 0.7 });
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(2.4,0.08,1.1), deskMat);
+  desk.position.set(0,0.78,-2.2); group.add(desk);
+  [[-1.1,-0.45],[1.1,-0.45],[-1.1,0.45],[1.1,0.45]].forEach(([x,z]) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.78,0.08), deskMat);
+    leg.position.set(x, 0.39, -2.2+z); group.add(leg);
+  });
+
+  const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.55,0.08), new THREE.MeshStandardMaterial({color:0x0a0c14}));
+  monitor.position.set(0,1.15,-2.35); group.add(monitor);
+  computerMesh = monitor;
+
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.58,0.42), new THREE.MeshBasicMaterial({color:0x3a5aff}));
+  screen.position.set(0,1.15,-2.30); group.add(screen);
+  const sLight = new THREE.PointLight(0x5a7aff, 1.2, 4);
+  sLight.position.set(0,1.15,-2.0); group.add(sLight);
+
+  const kb = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.03,0.22), new THREE.MeshStandardMaterial({color:0x222830}));
+  kb.position.set(0,0.84,-1.95); group.add(kb);
+
+  // Vent on the wall beside the terminal
+  const ventFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.7, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x3a3a48, roughness: 0.6, metalness: 0.4 })
+  );
+  ventFrame.position.set(1.6, 1.2, -4.88);
+  group.add(ventFrame);
+
+  // Slats
+  for (let i = 0; i < 5; i++) {
+    const slat = new THREE.Mesh(
+      new THREE.BoxGeometry(0.75, 0.04, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0x2a2a35, metalness: 0.5, roughness: 0.5 })
+    );
+    slat.position.set(1.6, 0.95 + i * 0.11, -4.82);
+    group.add(slat);
+  }
+  ventMesh = ventFrame;
+
+  // Decor
+  const d1 = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.9,0.05), new THREE.MeshBasicMaterial({color:0x3a5aff}));
+  d1.position.set(-3.5,1.8,-4.85); d1.rotation.z=0.3; group.add(d1);
+  const d2 = new THREE.Mesh(new THREE.CircleGeometry(0.35,16), new THREE.MeshBasicMaterial({color:0xff3a9a}));
+  d2.position.set(-2.7,2.1,-4.85); group.add(d2);
+  const d3 = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.7,0.05), new THREE.MeshBasicMaterial({color:0xffcc33}));
+  d3.position.set(3.2,1.6,-4.85); d3.rotation.z=-0.4; group.add(d3);
+
+  // Locked exit door (front wall)
+  const exitDoor = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 2.4, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0x1a1e28, metalness: 0.3, roughness: 0.6 })
+  );
+  exitDoor.position.set(-3.5, 1.2, 7.85);
+  group.add(exitDoor);
+  const doorHandle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.04, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.7 })
+  );
+  doorHandle.position.set(-2.95, 1.1, 7.95);
+  group.add(doorHandle);
+  exitDoorMesh = exitDoor;
+
+  // Ceiling hatch (visible square on the ceiling toward the back)
+  const hatchFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 0.06, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0x2a2030, roughness: 0.7 })
+  );
+  hatchFrame.position.set(2.5, 3.15, 2.5);
+  group.add(hatchFrame);
+
+  const hatchDoor = new THREE.Mesh(
+    new THREE.BoxGeometry(1.0, 0.04, 1.0),
+    new THREE.MeshStandardMaterial({ color: 0x3a2a20, roughness: 0.8 })
+  );
+  hatchDoor.position.set(2.5, 3.12, 2.5);
+  group.add(hatchDoor);
+  hatchMesh = hatchDoor;
+
+  // Subtle mark / handle on hatch
+  const handle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.25, 0.03, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x555555 })
+  );
+  handle.position.set(2.5, 3.08, 2.5);
+  group.add(handle);
+
+  // Office lights
+  const deskLight = new THREE.PointLight(0x7a9cff, 2.0, 10);
+  deskLight.position.set(0, 2.2, -1.5);
+  group.add(deskLight);
+  const fill = new THREE.PointLight(0x556688, 0.7, 12);
+  fill.position.set(2, 2.5, 3);
+  group.add(fill);
+  const red = new THREE.PointLight(0xff3a6a, 0.45, 7);
+  red.position.set(-3, 1.5, 2);
+  group.add(red);
+}
+
+function buildAttic(group) {
+  // Darker attic
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1510, roughness: 0.95 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 12), floorMat);
+  floor.rotation.x = -Math.PI/2; group.add(floor);
+
+  // Sloped-ish low ceiling (flat for simplicity)
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(14,12), new THREE.MeshStandardMaterial({color:0x0e0c0a}));
+  ceil.rotation.x = Math.PI/2; ceil.position.y = 2.4; group.add(ceil);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a1612, roughness: 0.9 });
+  const back = new THREE.Mesh(new THREE.BoxGeometry(14,2.4,0.25), wallMat);
+  back.position.set(0,1.2,-5.5); group.add(back);
+  const front = new THREE.Mesh(new THREE.BoxGeometry(14,2.4,0.25), wallMat);
+  front.position.set(0,1.2,5.5); group.add(front);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.25,2.4,12), wallMat);
+  left.position.set(-6.5,1.2,0); group.add(left);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(0.25,2.4,12), wallMat);
+  right.position.set(6.5,1.2,0); group.add(right);
+
+  // Scrawled warning on the back wall
+  const textCanvas = document.createElement('canvas');
+  textCanvas.width = 512;
+  textCanvas.height = 128;
+  const ctx = textCanvas.getContext('2d');
+  ctx.clearRect(0, 0, 512, 128);
+  ctx.font = 'bold 48px Courier New, monospace';
+  ctx.fillStyle = '#c02020';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // slight uneven look
+  ctx.save();
+  ctx.translate(256, 64);
+  ctx.rotate(-0.04);
+  ctx.fillText("DON'T TRUST THEM", 0, 0);
+  ctx.restore();
+  // faint second pass for worn paint
+  ctx.globalAlpha = 0.35;
+  ctx.font = 'bold 48px Courier New, monospace';
+  ctx.fillStyle = '#8a1010';
+  ctx.fillText("DON'T TRUST THEM", 258, 66);
+  ctx.globalAlpha = 1;
+
+  const textTex = new THREE.CanvasTexture(textCanvas);
+  textTex.needsUpdate = true;
+  const textMat = new THREE.MeshBasicMaterial({
+    map: textTex,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const textPlane = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), textMat);
+  textPlane.position.set(0.3, 1.55, -5.36);
+  group.add(textPlane);
+
+  // Dusty attic light — warmer and more readable
+  const amb = new THREE.PointLight(0xccaa77, 1.8, 16);
+  amb.position.set(0, 2.0, 0); group.add(amb);
+  const weak = new THREE.PointLight(0x998866, 1.1, 12);
+  weak.position.set(-3, 1.5, -2); group.add(weak);
+  const corner = new THREE.PointLight(0xaa9966, 0.95, 11);
+  corner.position.set(3.5, 1.8, 2); group.add(corner);
+  const deskGlow = new THREE.PointLight(0xbbaa88, 0.8, 6);
+  deskGlow.position.set(-1.5, 1.4, -3.2); group.add(deskGlow);
+
+  // Boxes stacked around
+  const boxColors = [0x5a4030, 0x4a3525, 0x3a2a1a, 0x6a4a30, 0x2a2018];
+  const boxPositions = [
+    [-4.5, 0.4, -4], [-3.5, 0.35, -4.2], [-4.0, 0.9, -4.1],
+    [-5, 0.3, -2.5], [-4.2, 0.45, -1.8], [-4.8, 0.85, -2.2],
+    [4.5, 0.4, -3.8], [3.8, 0.35, -4.3], [4.2, 0.95, -4.0],
+    [5, 0.3, -1.5], [4.3, 0.5, -0.8], [4.8, 0.9, -1.2],
+    [-5, 0.35, 3], [-4, 0.4, 3.5], [-4.5, 0.9, 3.2],
+    [4.5, 0.3, 3.2], [3.5, 0.45, 3.8], [4.0, 0.85, 3.5],
+    [-2, 0.3, -4.5], [1.5, 0.35, -4.8], [0, 0.25, 4.5],
+    [2, 0.4, 4.2], [-1, 0.5, 4.0]
+  ];
+  boxPositions.forEach((p, i) => {
+    const s = 0.5 + (i % 3) * 0.15;
+    makeBox(s, s * 0.7, s, boxColors[i % boxColors.length], p[0], p[1], p[2], group);
+  });
+
+  // Old wooden desk
+  const oldDesk = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 0.07, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x3a2a18, roughness: 0.9 })
+  );
+  oldDesk.position.set(-1.5, 0.72, -3.5);
+  group.add(oldDesk);
+  [[-0.8,-0.35],[0.8,-0.35],[-0.8,0.35],[0.8,0.35]].forEach(([x,z]) => {
+    const leg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.07, 0.72, 0.07),
+      new THREE.MeshStandardMaterial({ color: 0x2a1e10, roughness: 0.9 })
+    );
+    leg.position.set(-1.5+x, 0.36, -3.5+z);
+    group.add(leg);
+  });
+
+  // Dried blood splat under the desk
+  const bloodCanvas = document.createElement('canvas');
+  bloodCanvas.width = 256;
+  bloodCanvas.height = 256;
+  const bctx = bloodCanvas.getContext('2d');
+  bctx.clearRect(0, 0, 256, 256);
+  // main irregular blot
+  bctx.fillStyle = '#4a0a0a';
+  bctx.beginPath();
+  bctx.ellipse(128, 140, 70, 45, -0.3, 0, Math.PI * 2);
+  bctx.fill();
+  bctx.fillStyle = '#3a0808';
+  bctx.beginPath();
+  bctx.ellipse(110, 120, 40, 28, 0.4, 0, Math.PI * 2);
+  bctx.fill();
+  // drips / smaller spots
+  bctx.fillStyle = '#2a0606';
+  [[160,170,18],[90,155,12],[145,100,10],[100,185,8],[175,130,7]].forEach(([x,y,r]) => {
+    bctx.beginPath();
+    bctx.arc(x, y, r, 0, Math.PI * 2);
+    bctx.fill();
+  });
+  // darker edge stain
+  bctx.globalAlpha = 0.5;
+  bctx.fillStyle = '#1a0404';
+  bctx.beginPath();
+  bctx.ellipse(130, 150, 55, 30, -0.2, 0, Math.PI * 2);
+  bctx.fill();
+  bctx.globalAlpha = 1;
+
+  const bloodTex = new THREE.CanvasTexture(bloodCanvas);
+  bloodTex.needsUpdate = true;
+  const bloodMat = new THREE.MeshBasicMaterial({
+    map: bloodTex,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  const bloodSplat = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.1), bloodMat);
+  bloodSplat.rotation.x = -Math.PI / 2;
+  bloodSplat.position.set(-1.4, 0.02, -3.3);
+  group.add(bloodSplat);
+
+  // Older, dead computer (beige CRT style, dark screen)
+  const crtBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.55, 0.5, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x8a8070, roughness: 0.7 })
+  );
+  crtBody.position.set(-1.5, 1.05, -3.65);
+  group.add(crtBody);
+
+  const crtScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.4, 0.32),
+    new THREE.MeshBasicMaterial({ color: 0x0a0a08 }) // dead black screen
+  );
+  crtScreen.position.set(-1.5, 1.08, -3.39);
+  group.add(crtScreen);
+  deadComputerMesh = crtBody;
+
+  // Old keyboard
+  const oldKb = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.03, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0x6a6558, roughness: 0.8 })
+  );
+  oldKb.position.set(-1.5, 0.78, -3.2);
+  group.add(oldKb);
+
+  // Yellowed note on the desk
+  const note = new THREE.Mesh(
+    new THREE.BoxGeometry(0.28, 0.002, 0.2),
+    new THREE.MeshStandardMaterial({ color: 0xc8b88a, roughness: 0.9 })
+  );
+  note.position.set(-0.9, 0.76, -3.35);
+  note.rotation.y = 0.25;
+  group.add(note);
+  noteMesh = note;
+
+  // Screwdriver on a box (pickup)
+  const driverHandle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.03, 0.18, 8),
+    new THREE.MeshStandardMaterial({ color: 0x8a2020, roughness: 0.7 })
+  );
+  driverHandle.rotation.z = Math.PI / 2;
+  driverHandle.position.set(4.0, 0.72, -3.9);
+  group.add(driverHandle);
+  const driverShaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.012, 0.22, 6),
+    new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.3 })
+  );
+  driverShaft.rotation.z = Math.PI / 2;
+  driverShaft.position.set(4.2, 0.72, -3.9);
+  group.add(driverShaft);
+  screwdriverMesh = driverHandle;
+
+  // Floor hatch (way back down) — near center-front of attic
+  const hatchFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(1.15, 0.05, 1.15),
+    new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.8 })
+  );
+  hatchFrame.position.set(2.5, 0.03, 2.5);
+  group.add(hatchFrame);
+
+  const hatchDoor = new THREE.Mesh(
+    new THREE.BoxGeometry(0.95, 0.04, 0.95),
+    new THREE.MeshStandardMaterial({ color: 0x3a2a20, roughness: 0.85 })
+  );
+  hatchDoor.position.set(2.5, 0.05, 2.5);
+  group.add(hatchDoor);
+  atticHatchMesh = hatchDoor;
+}
+
+function buildSecret(group) {
+  // Narrow hidden corridor / room behind the vent
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0e1018, roughness: 0.95 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(8, 10), floorMat);
+  floor.rotation.x = -Math.PI / 2; group.add(floor);
+
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(8, 10), new THREE.MeshStandardMaterial({ color: 0x0a0c12 }));
+  ceil.rotation.x = Math.PI / 2; ceil.position.y = 2.6; group.add(ceil);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x12141c, roughness: 0.9 });
+  const back = new THREE.Mesh(new THREE.BoxGeometry(8, 2.6, 0.2), wallMat);
+  back.position.set(0, 1.3, -4.8); group.add(back);
+  const front = new THREE.Mesh(new THREE.BoxGeometry(8, 2.6, 0.2), wallMat);
+  front.position.set(0, 1.3, 4.8); group.add(front);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.6, 10), wallMat);
+  left.position.set(-3.9, 1.3, 0); group.add(left);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.6, 10), wallMat);
+  right.position.set(3.9, 1.3, 0); group.add(right);
+
+  // Cold blue residual light
+  const cold = new THREE.PointLight(0x4466aa, 0.9, 10);
+  cold.position.set(0, 2.0, 0); group.add(cold);
+  const dim = new THREE.PointLight(0x334466, 0.4, 8);
+  dim.position.set(-2, 1.5, -2); group.add(dim);
+
+  // Filing cabinets / locked racks
+  [[-2.5, -3], [2.5, -3], [-2.5, -1], [2.5, -1]].forEach(([x, z], i) => {
+    const cab = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 1.6, 0.6),
+      new THREE.MeshStandardMaterial({ color: i % 2 ? 0x2a3040 : 0x1e2430, roughness: 0.7, metalness: 0.3 })
+    );
+    cab.position.set(x, 0.8, z); group.add(cab);
+  });
+
+  // Active sublevel terminal on a stand
+  const stand = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.06, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x1a1e28 })
+  );
+  stand.position.set(0, 0.9, -3.5); group.add(stand);
+  const oldMon = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.4, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x0a0c10 })
+  );
+  oldMon.position.set(0, 1.15, -3.55); group.add(oldMon);
+  const secScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 0.3),
+    new THREE.MeshBasicMaterial({ color: 0x2a4aff })
+  );
+  secScreen.position.set(0, 1.15, -3.50); group.add(secScreen);
+  const secLight = new THREE.PointLight(0x3a5aff, 0.9, 4);
+  secLight.position.set(0, 1.2, -3.2); group.add(secLight);
+  secretPCMesh = oldMon;
+
+  // Exit vent opening (back to office)
+  const exitVent = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.7, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x3a3a48, metalness: 0.4, roughness: 0.6 })
+  );
+  exitVent.position.set(0, 1.2, 4.7);
+  group.add(exitVent);
+  secretExitMesh = exitVent;
+
+  // Wall stencil
+  const sc = document.createElement('canvas');
+  sc.width = 512; sc.height = 96;
+  const sctx = sc.getContext('2d');
+  sctx.clearRect(0, 0, 512, 96);
+  sctx.font = 'bold 36px Courier New, monospace';
+  sctx.fillStyle = '#5a6a90';
+  sctx.textAlign = 'center';
+  sctx.textBaseline = 'middle';
+  sctx.fillText('SUBLEVEL ACCESS — UNAUTHORIZED', 256, 48);
+  const stx = new THREE.CanvasTexture(sc);
+  const sp = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.5, 0.65),
+    new THREE.MeshBasicMaterial({ map: stx, transparent: true, depthWrite: false })
+  );
+  sp.position.set(0, 2.0, -4.68);
+  group.add(sp);
+}
+
+function buildBasement(group) {
+  // THE BASEMENT — colder, larger, industrial
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.95 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 20), floorMat);
+  floor.rotation.x = -Math.PI / 2; group.add(floor);
+
+  const ceil = new THREE.Mesh(
+    new THREE.PlaneGeometry(24, 20),
+    new THREE.MeshStandardMaterial({ color: 0x0c0c10 })
+  );
+  ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.0; group.add(ceil);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x141418, roughness: 0.9 });
+  const back = new THREE.Mesh(new THREE.BoxGeometry(24, 4, 0.3), wallMat);
+  back.position.set(0, 2, -9.5); group.add(back);
+  const front = new THREE.Mesh(new THREE.BoxGeometry(24, 4, 0.3), wallMat);
+  front.position.set(0, 2, 9.5); group.add(front);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4, 20), wallMat);
+  left.position.set(-11.5, 2, 0); group.add(left);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4, 20), wallMat);
+  right.position.set(11.5, 2, 0); group.add(right);
+
+  // Sparse cold lights
+  const l1 = new THREE.PointLight(0x6688aa, 1.2, 14);
+  l1.position.set(0, 3.2, 0); group.add(l1);
+  const l2 = new THREE.PointLight(0x445566, 0.7, 12);
+  l2.position.set(-6, 3, -4); group.add(l2);
+  const l3 = new THREE.PointLight(0x445566, 0.7, 12);
+  l3.position.set(6, 3, 4); group.add(l3);
+  const redB = new THREE.PointLight(0xaa3344, 0.35, 10);
+  redB.position.set(0, 2, -7); group.add(redB);
+
+  // Support pillars
+  [-6, 0, 6].forEach(x => {
+    [-4, 4].forEach(z => {
+      const p = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 4, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.8 })
+      );
+      p.position.set(x, 2, z); group.add(p);
+    });
+  });
+
+  // Distant sealed door suggestion
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 3.0, 0.15),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a22, metalness: 0.4, roughness: 0.5 })
+  );
+  door.position.set(0, 1.5, -9.3); group.add(door);
+
+  // Floor stencil
+  const bc = document.createElement('canvas');
+  bc.width = 512; bc.height = 128;
+  const bctx = bc.getContext('2d');
+  bctx.clearRect(0, 0, 512, 128);
+  bctx.font = 'bold 56px Courier New, monospace';
+  bctx.fillStyle = '#4a2030';
+  bctx.textAlign = 'center';
+  bctx.textBaseline = 'middle';
+  bctx.fillText('THE BASEMENT', 256, 64);
+  const btex = new THREE.CanvasTexture(bc);
+  const bp = new THREE.Mesh(
+    new THREE.PlaneGeometry(6, 1.5),
+    new THREE.MeshBasicMaterial({ map: btex, transparent: true, depthWrite: false })
+  );
+  bp.rotation.x = -Math.PI / 2;
+  bp.position.set(0, 0.03, 2);
+  group.add(bp);
+
+  // Rotted remains — K. Marsh
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3a2a22, roughness: 0.95 });
+  const limbMat = new THREE.MeshStandardMaterial({ color: 0x2e2218, roughness: 0.95 });
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.2, 0.9), bodyMat);
+  torso.position.set(-4.5, 0.12, -5.5);
+  torso.rotation.y = 0.4;
+  group.add(torso);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), limbMat);
+  head.position.set(-4.35, 0.18, -6.05);
+  group.add(head);
+  const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.55), limbMat);
+  leg1.position.set(-4.7, 0.08, -4.9);
+  leg1.rotation.y = 0.3;
+  group.add(leg1);
+  const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.5), limbMat);
+  leg2.position.set(-4.25, 0.08, -4.85);
+  leg2.rotation.y = -0.2;
+  group.add(leg2);
+  const arm1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.12), limbMat);
+  arm1.position.set(-5.0, 0.1, -5.6);
+  arm1.rotation.z = 0.3;
+  group.add(arm1);
+  corpseMesh = torso;
+
+  // Stain under body
+  const stain = new THREE.Mesh(
+    new THREE.CircleGeometry(0.7, 12),
+    new THREE.MeshBasicMaterial({ color: 0x1a0808, transparent: true, opacity: 0.7 })
+  );
+  stain.rotation.x = -Math.PI / 2;
+  stain.position.set(-4.5, 0.02, -5.5);
+  group.add(stain);
+
+  // Return marker (glowing pad to leave)
+  const pad = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.8, 0.8, 0.05, 16),
+    new THREE.MeshBasicMaterial({ color: 0x2a4a8a })
+  );
+  pad.position.set(0, 0.04, 7);
+  group.add(pad);
+  group.userData.exitPad = pad;
+
+  // Security guards with flashlights
+  basementGuards = [];
+  const guardSpecs = [
+    { x: -7, z: -2, angle: 0, speed: 0.55, range: 3.5 },
+    { x: 6, z: 2, angle: Math.PI, speed: 0.45, range: 4.0 },
+    { x: 0, z: -6, angle: Math.PI / 2, speed: 0.35, range: 2.5 }
+  ];
+  guardSpecs.forEach((spec, i) => {
+    const gRoot = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 1.2, 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.8 })
+    );
+    body.position.y = 0.7;
+    gRoot.add(body);
+    const head = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.28, 0.28),
+      new THREE.MeshStandardMaterial({ color: 0x3a3030 })
+    );
+    head.position.y = 1.45;
+    gRoot.add(head);
+    // flashlight beam (visual cone approximation)
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.9, 5, 8, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xffeebb,
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    beam.rotation.x = Math.PI / 2;
+    beam.position.set(0, 1.2, -2.5);
+    gRoot.add(beam);
+    const spot = new THREE.SpotLight(0xffeecc, 1.4, 9, Math.PI / 7, 0.4, 1);
+    spot.position.set(0, 1.3, 0);
+    const spotTarget = new THREE.Object3D();
+    spotTarget.position.set(0, 1.0, -5);
+    gRoot.add(spotTarget);
+    spot.target = spotTarget;
+    gRoot.add(spot);
+
+    gRoot.position.set(spec.x, 0, spec.z);
+    gRoot.rotation.y = spec.angle;
+    group.add(gRoot);
+
+    basementGuards.push({
+      root: gRoot,
+      angle: spec.angle,
+      baseAngle: spec.angle,
+      speed: spec.speed,
+      sweep: spec.sweep,
+      phase: i * 1.7,
+      light: spot
+    });
+  });
+}
+
+// ===== 3D =====
+function init3D() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0c0e16);
+  scene.fog = new THREE.Fog(0x0c0e16, 6, 22);
+  scene.add(new THREE.AmbientLight(0x3a4558, 0.7));
+
+  camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 50);
+  camera.position.set(0, 1.6, 6);
+
+  renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  container.appendChild(renderer.domElement);
+
+  officeGroup = new THREE.Group();
+  atticGroup = new THREE.Group();
+  secretGroup = new THREE.Group();
+  basementGroup = new THREE.Group();
+  buildOffice(officeGroup);
+  buildAttic(atticGroup);
+  buildSecret(secretGroup);
+  buildBasement(basementGroup);
+  scene.add(officeGroup);
+  atticGroup.visible = false;
+  secretGroup.visible = false;
+  basementGroup.visible = false;
+  scene.add(atticGroup);
+  scene.add(secretGroup);
+  scene.add(basementGroup);
+
+  currentRoom = 'office';
+
+  $('auth-confirm').onclick = () => {
+    $('auth-overlay').classList.remove('visible');
+    document.exitPointerLock?.();
+    switchRoom('basement');
+  };
+  $('auth-cancel').onclick = () => {
+    $('auth-overlay').classList.remove('visible');
+    if (!isTouch) setTimeout(lockPointer, 100);
+  };
+
+  window.addEventListener('resize', () => {
+    if (!camera) return;
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keyup', onKeyUp);
+  if (isTouch) setupMobileControls();
+  animate();
+}
+
+function switchRoom(room) {
+  fade.classList.add('active');
+  setTimeout(() => {
+    officeGroup.visible = false;
+    atticGroup.visible = false;
+    secretGroup.visible = false;
+    basementGroup.visible = false;
+
+    if (room === 'attic') {
+      atticGroup.visible = true;
+      currentRoom = 'attic';
+      scene.background = new THREE.Color(0x18120c);
+      scene.fog = new THREE.Fog(0x18120c, 6, 18);
+      camera.position.set(0, 1.5, 3);
+      hud.innerHTML = 'NODE 0xA7F2 // SECURE<br>ATTIC — RESTRICTED';
+    } else if (room === 'secret') {
+      secretGroup.visible = true;
+      currentRoom = 'secret';
+      scene.background = new THREE.Color(0x080a12);
+      scene.fog = new THREE.Fog(0x080a12, 4, 12);
+      camera.position.set(0, 1.5, 3.5);
+      hud.innerHTML = 'NODE 0xA7F2 // SECURE<br>UNAUTHORIZED SPACE';
+    } else if (room === 'basement') {
+      basementGroup.visible = true;
+      currentRoom = 'basement';
+      scene.background = new THREE.Color(0x0a0a0e);
+      scene.fog = new THREE.Fog(0x0a0a0e, 6, 20);
+      camera.position.set(0, 1.6, 6);
+      hud.innerHTML = 'NODE — // OFFLINE<br>THE BASEMENT';
+      basementSpotted = false;
+      $('gameover-screen').classList.remove('visible');
+      // Restore guard visibility if key not taken
+      if (!hasExitKey) {
+        basementGuards.forEach(g => {
+          if (g.root) g.root.visible = true;
+          if (g.light) g.light.intensity = 1.4;
+        });
+      } else {
+        clearBasementGuards();
+      }
+    } else {
+      officeGroup.visible = true;
+      currentRoom = 'office';
+      scene.background = new THREE.Color(0x0c0e16);
+      scene.fog = new THREE.Fog(0x0c0e16, 6, 22);
+      camera.position.set(1.2, 1.6, -2.0);
+      hud.innerHTML = 'NODE 0xA7F2 // SECURE<br>FLOOR 7 — SUBLEVEL';
+    }
+    interactTarget = null;
+    canInteract = false;
+    promptEl.style.display = 'none';
+    interactBtn.classList.remove('visible');
+    fade.classList.remove('active');
+  }, 500);
+}
+
+function tryInteract() {
+  if (!canInteract || !interactTarget) return;
+  if (interactTarget === 'terminal') startTransition();
+  else if (interactTarget === 'hatch') tryEnterAttic();
+  else if (interactTarget === 'atticHatch') switchRoom('office');
+  else if (interactTarget === 'deadPC') showDeadPCMessage();
+  else if (interactTarget === 'note') showNoteMessage();
+  else if (interactTarget === 'screwdriver') pickupScrewdriver();
+  else if (interactTarget === 'vent') tryOpenVent();
+  else if (interactTarget === 'secretExit') switchRoom('office');
+  else if (interactTarget === 'secretPC') openAuthScreen();
+  else if (interactTarget === 'basementExit') switchRoom('secret');
+  else if (interactTarget === 'corpse') searchCorpse();
+  else if (interactTarget === 'exitDoor') tryExitDoor();
+}
+
+function openAuthScreen() {
+  document.exitPointerLock?.();
+  pointerLocked = false;
+  $('auth-overlay').classList.add('visible');
+}
+
+function searchCorpse() {
+  if (hasExitKey) return;
+  hasExitKey = true;
+  // Guards stand down once the key is taken
+  clearBasementGuards();
+  showInspection('In a torn pocket: a worn brass key. Tag: FACILITY EXIT.', 2000);
+  setTimeout(() => showEndingScreen('good'), 1800);
+}
+
+function clearBasementGuards() {
+  basementGuards.forEach(g => {
+    if (g.root) g.root.visible = false;
+    if (g.light) g.light.intensity = 0;
+  });
+  basementGuards = [];
+  basementSpotted = false;
+  $('gameover-screen').classList.remove('visible');
+}
+
+function updateBasementGuards(delta) {
+  if (currentRoom !== 'basement' || hasExitKey || basementSpotted || transitioned) return;
+  const t = performance.now() / 1000;
+  basementGuards.forEach(g => {
+    // Sweep flashlight left/right
+    g.angle = g.baseAngle + Math.sin(t * g.speed + g.phase) * g.sweep;
+    g.root.rotation.y = g.angle;
+
+    // Detection: player in front cone
+    const gx = g.root.position.x;
+    const gz = g.root.position.z;
+    const dx = camera.position.x - gx;
+    const dz = camera.position.z - gz;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < 0.4 || dist > 7.5) return;
+
+    const forwardX = -Math.sin(g.angle);
+    const forwardZ = -Math.cos(g.angle);
+    const inv = 1 / dist;
+    const nx = dx * inv, nz = dz * inv;
+    const dot = forwardX * nx + forwardZ * nz; // 1 = straight ahead
+    // ~35 degree cone
+    if (dot > 0.82) {
+      triggerBasementGameOver();
+    }
+  });
+}
+
+function triggerBasementGameOver() {
+  if (basementSpotted || hasExitKey) return;
+  basementSpotted = true;
+  document.exitPointerLock?.();
+  pointerLocked = false;
+  $('gameover-screen').classList.add('visible');
+}
+
+function restartBasement() {
+  basementSpotted = false;
+  $('gameover-screen').classList.remove('visible');
+  // Reset player to basement spawn
+  if (camera) {
+    camera.position.set(0, 1.6, 6);
+    euler.set(0, 0, 0);
+    camera.quaternion.setFromEuler(euler);
+  }
+  // Rebuild guards if they were cleared somehow without key
+  if (!hasExitKey && basementGuards.length === 0 && basementGroup) {
+    // guards only exist from buildBasement — if cleared, just respawn visibility isn't available
+    // So we only clear on key pickup; on game over guards stay and keep patrolling after restart
+  }
+  if (!isTouch) setTimeout(lockPointer, 120);
+}
+
+function showEndingScreen(type) {
+  document.exitPointerLock?.();
+  pointerLocked = false;
+  transitioned = true;
+  promptEl.style.display = 'none';
+  crosshair.style.display = 'none';
+  hud.style.display = 'none';
+  mobileControls.classList.remove('visible');
+  interactBtn.classList.remove('visible');
+  $('auth-overlay').classList.remove('visible');
+  $('terminal-layer').style.display = 'none';
+  container.style.display = 'none';
+
+  const screen = $('ending-screen');
+  screen.classList.remove('good', 'bad');
+  screen.classList.add('visible', type);
+  if (type === 'good') {
+    $('ending-title').textContent = 'GOOD ENDING!';
+    $('ending-sub').textContent = 'You found an exit key and escaped.';
+  } else {
+    $('ending-title').textContent = 'BAD ENDING.';
+    $('ending-sub').textContent = 'You failed your tasks and you were terminated.';
+  }
+}
+
+function tryExitDoor() {
+  if (!hasExitKey) {
+    showInspection('The exit is locked. A heavy magnetic seal.', 2800);
+    return;
+  }
+  // Escape ending
+  document.exitPointerLock?.();
+  pointerLocked = false;
+  transitioned = true;
+  promptEl.style.display = 'none';
+  crosshair.style.display = 'none';
+  hud.style.display = 'none';
+  mobileControls.classList.remove('visible');
+  fade.classList.add('active');
+  setTimeout(() => {
+    container.style.display = 'none';
+    $('terminal-layer').style.display = 'flex';
+    fade.classList.remove('active');
+    // Show escape text on terminal surface
+    $('work').classList.remove('hidden');
+    $('login').classList.add('hidden');
+    $('boot').style.display = 'none';
+    $('choices').style.display = 'none';
+    $('back-btn').classList.remove('visible');
+    typeLines([
+      {cls:'system', t:'> FACILITY EXIT — AUTHORIZED'},
+      {cls:'', t:''},
+      {cls:'', t:'The seal releases. Cold air from outside.'},
+      {cls:'', t:''},
+      {cls:'ghost', t:'You do not look back at Floor 7.'},
+      {cls:'ghost', t:'Behind you, the building keeps its silence.'},
+      {cls:'', t:''},
+      {cls:'', t:'Somewhere below, a light stays on.'},
+      {cls:'', t:''},
+      {cls:'system', t:'SESSION ENDED — OUTSIDE NODE RANGE'},
+      {cls:'', t:''},
+      {cls:'ghost', t:'You made it out.'}
+    ], $('output'), () => {
+      setTimeout(() => $('back-btn').classList.add('visible'), 500);
+    });
+  }, 1200);
+}
+
+function pickupScrewdriver() {
+  hasScrewdriver = true;
+  if (screwdriverMesh) {
+    screwdriverMesh.visible = false;
+    // also hide shaft (sibling was added after handle - find nearby)
+    screwdriverMesh.parent?.children.forEach(c => {
+      if (c !== screwdriverMesh && c.position && 
+          Math.abs(c.position.x - 4.2) < 0.05 && Math.abs(c.position.z + 3.9) < 0.05) {
+        c.visible = false;
+      }
+    });
+  }
+  showInspection('Picked up a flathead screwdriver.', 2500);
+}
+
+function tryEnterAttic() {
+  if (!jobComplete) {
+    showInspection('I should do my job first.', 2800);
+    return;
+  }
+  switchRoom('attic');
+}
+
+function tryOpenVent() {
+  if (!hasScrewdriver) {
+    showInspection('The vent is screwed shut. You need a tool.', 2800);
+    return;
+  }
+  if (!ventOpen) {
+    ventOpen = true;
+    showInspection('Screws give way. The vent opens into darkness.', 2200);
+    setTimeout(() => switchRoom('secret'), 900);
+  } else {
+    switchRoom('secret');
+  }
+}
+
+function showInspection(msg, durationMs) {
+  promptEl.innerHTML = msg;
+  promptEl.style.display = 'block';
+  promptLockUntil = performance.now() + (durationMs || 3000);
+}
+
+function showDeadPCMessage() {
+  const msgs = [
+    'The machine is cold. It does not respond.',
+    'Dust fills the vents. Last power-on: 14 March 1991.',
+    'A faded tag on the side reads: ARCHIVE NODE — DO NOT RELOCATE.',
+    'Something was wiped from this drive. Thoroughly.'
+  ];
+  const msg = msgs[Math.min(deadPCReadCount, msgs.length - 1)];
+  deadPCReadCount++;
+  showInspection(msg, 3200);
+}
+
+function showNoteMessage() {
+  const msgs = [
+    '"They moved me up here after I asked about Floor 7."',
+    '"The blood isn\'t mine. I need you to believe that."',
+    '"If you\'re reading this — leave. Don\'t log in as yourself."',
+    '"K. Marsh was never reassigned. Check the purge list."'
+  ];
+  if (!showNoteMessage.i) showNoteMessage.i = 0;
+  const msg = msgs[showNoteMessage.i % msgs.length];
+  showNoteMessage.i++;
+  showInspection(msg, 3500);
+}
+
+function onKeyDown(e) {
+  if (transitioned) return;
+  if (e.code==='KeyW') keys.w=true;
+  if (e.code==='KeyA') keys.a=true;
+  if (e.code==='KeyS') keys.s=true;
+  if (e.code==='KeyD') keys.d=true;
+  if (e.code==='KeyE') tryInteract();
+}
+function onKeyUp(e) {
+  if (e.code==='KeyW') keys.w=false;
+  if (e.code==='KeyA') keys.a=false;
+  if (e.code==='KeyS') keys.s=false;
+  if (e.code==='KeyD') keys.d=false;
+}
+
+function lockPointer() {
+  if (isTouch || transitioned || !renderer) return;
+  const el = renderer.domElement;
+  (el.requestPointerLock || el.mozRequestPointerLock || el.webkitRequestPointerLock)?.call(el);
+}
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === renderer?.domElement;
+});
+document.addEventListener('mousemove', e => {
+  if (!pointerLocked || transitioned) return;
+  euler.setFromQuaternion(camera.quaternion);
+  euler.y -= (e.movementX||0) * 0.002;
+  euler.x -= (e.movementY||0) * 0.002;
+  euler.x = Math.max(-PI_2+0.1, Math.min(PI_2-0.1, euler.x));
+  camera.quaternion.setFromEuler(euler);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (transitioned || !camera) return;
+  const delta = Math.min(clock.getDelta(), 0.05);
+
+  if (!basementSpotted && !isTouch && pointerLocked) {
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward); forward.y=0; forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+    const speed = 1.9 * delta;
+    if (keys.w) camera.position.addScaledVector(forward, speed);
+    if (keys.s) camera.position.addScaledVector(forward, -speed);
+    if (keys.a) camera.position.addScaledVector(right, -speed);
+    if (keys.d) camera.position.addScaledVector(right, speed);
+  }
+
+  if (!basementSpotted && isTouch) {
+    const moveSpeed = 1.9 * delta;
+    if (Math.abs(mobile.moveX)>0.1 || Math.abs(mobile.moveY)>0.1) {
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward); forward.y=0; forward.normalize();
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+      camera.position.addScaledVector(forward, -mobile.moveY * moveSpeed);
+      camera.position.addScaledVector(right, mobile.moveX * moveSpeed);
+    }
+    if (mobile.lookDX || mobile.lookDY) {
+      euler.setFromQuaternion(camera.quaternion);
+      euler.y -= mobile.lookDX * 0.0045;
+      euler.x -= mobile.lookDY * 0.0045;
+      mobile.lookDX = 0; mobile.lookDY = 0;
+      euler.x = Math.max(-1.2, Math.min(1.2, euler.x));
+      camera.quaternion.setFromEuler(euler);
+    }
+  }
+
+  camera.position.y = (currentRoom === 'attic' || currentRoom === 'secret') ? 1.5 : 1.6;
+
+  // Room bounds
+  if (currentRoom === 'office') {
+    camera.position.x = Math.max(-5.2, Math.min(5.2, camera.position.x));
+    camera.position.z = Math.max(-4.2, Math.min(7.2, camera.position.z));
+  } else if (currentRoom === 'secret') {
+    camera.position.x = Math.max(-3.4, Math.min(3.4, camera.position.x));
+    camera.position.z = Math.max(-4.2, Math.min(4.2, camera.position.z));
+  } else if (currentRoom === 'basement') {
+    camera.position.x = Math.max(-10.5, Math.min(10.5, camera.position.x));
+    camera.position.z = Math.max(-8.5, Math.min(8.5, camera.position.z));
+  } else {
+    camera.position.x = Math.max(-5.8, Math.min(5.8, camera.position.x));
+    camera.position.z = Math.max(-4.8, Math.min(4.8, camera.position.z));
+  }
+
+  // Interaction targets
+  interactTarget = null;
+  canInteract = false;
+  let promptText = '';
+
+  if (currentRoom === 'office') {
+    if (computerMesh && camera.position.distanceTo(computerMesh.position) < 2.3) {
+      interactTarget = 'terminal';
+      canInteract = true;
+      promptText = isTouch ? 'TAP E  Access Systems Interface' : '<kbd>E</kbd> Access Systems Interface';
+    } else if (exitDoorMesh && camera.position.distanceTo(exitDoorMesh.position) < 2.4) {
+      interactTarget = 'exitDoor';
+      canInteract = true;
+      promptText = hasExitKey
+        ? (isTouch ? 'TAP E  Unlock exit' : '<kbd>E</kbd> Unlock exit')
+        : (isTouch ? 'TAP E  Try exit door' : '<kbd>E</kbd> Try exit door');
+    } else if (ventMesh && camera.position.distanceTo(ventMesh.position) < 2.2) {
+      interactTarget = 'vent';
+      canInteract = true;
+      if (ventOpen) {
+        promptText = isTouch ? 'TAP E  Enter vent' : '<kbd>E</kbd> Enter vent';
+      } else if (hasScrewdriver) {
+        promptText = isTouch ? 'TAP E  Unscrew vent' : '<kbd>E</kbd> Unscrew vent';
+      } else {
+        promptText = isTouch ? 'TAP E  Inspect vent' : '<kbd>E</kbd> Inspect vent';
+      }
+    } else if (hatchMesh) {
+      const hx = hatchMesh.position.x, hz = hatchMesh.position.z;
+      const dx = camera.position.x - hx, dz = camera.position.z - hz;
+      if (Math.sqrt(dx*dx + dz*dz) < 1.6) {
+        interactTarget = 'hatch';
+        canInteract = true;
+        if (jobComplete) {
+          promptText = isTouch ? 'TAP E  Enter attic hatch' : '<kbd>E</kbd> Enter attic hatch';
+        } else {
+          promptText = isTouch ? 'TAP E  Inspect hatch' : '<kbd>E</kbd> Inspect hatch';
+        }
+      }
+    }
+  } else if (currentRoom === 'attic') {
+    if (!hasScrewdriver && screwdriverMesh && screwdriverMesh.visible &&
+        camera.position.distanceTo(screwdriverMesh.position) < 2.2) {
+      interactTarget = 'screwdriver';
+      canInteract = true;
+      promptText = isTouch ? 'TAP E  Take screwdriver' : '<kbd>E</kbd> Take screwdriver';
+    } else if (noteMesh && camera.position.distanceTo(noteMesh.position) < 2.4) {
+      interactTarget = 'note';
+      canInteract = true;
+      promptText = isTouch ? 'TAP E  Read note' : '<kbd>E</kbd> Read note';
+    } else if (deadComputerMesh && camera.position.distanceTo(deadComputerMesh.position) < 2.4) {
+      interactTarget = 'deadPC';
+      canInteract = true;
+      promptText = isTouch ? 'TAP E  Inspect terminal' : '<kbd>E</kbd> Inspect terminal';
+    } else if (atticHatchMesh) {
+      const hx = atticHatchMesh.position.x, hz = atticHatchMesh.position.z;
+      const dx = camera.position.x - hx, dz = camera.position.z - hz;
+      if (Math.sqrt(dx*dx + dz*dz) < 1.6) {
+        interactTarget = 'atticHatch';
+        canInteract = true;
+        promptText = isTouch ? 'TAP E  Climb down' : '<kbd>E</kbd> Climb down';
+      }
+    }
+  } else if (currentRoom === 'secret') {
+    if (secretPCMesh && camera.position.distanceTo(secretPCMesh.position) < 2.3) {
+      interactTarget = 'secretPC';
+      canInteract = true;
+      promptText = isTouch ? 'TAP E  Access terminal' : '<kbd>E</kbd> Access terminal';
+    } else if (secretExitMesh && camera.position.distanceTo(secretExitMesh.position) < 2.3) {
+      interactTarget = 'secretExit';
+      canInteract = true;
+      promptText = isTouch ? 'TAP E  Climb back through vent' : '<kbd>E</kbd> Climb back through vent';
+    }
+  } else if (currentRoom === 'basement') {
+    if (corpseMesh && camera.position.distanceTo(corpseMesh.position) < 2.5) {
+      interactTarget = 'corpse';
+      canInteract = true;
+      promptText = isTouch ? 'TAP E  Search remains' : '<kbd>E</kbd> Search remains';
+    } else {
+      const pad = basementGroup?.userData?.exitPad;
+      if (pad && camera.position.distanceTo(pad.position) < 1.8) {
+        interactTarget = 'basementExit';
+        canInteract = true;
+        promptText = isTouch ? 'TAP E  Return upstairs' : '<kbd>E</kbd> Return upstairs';
+      }
+    }
+  }
+
+  if (performance.now() < promptLockUntil) {
+    // keep showing inspection text; don't overwrite
+  } else if (canInteract) {
+    promptEl.innerHTML = promptText;
+    promptEl.style.display = 'block';
+  } else {
+    promptEl.style.display = 'none';
+  }
+  if (isTouch) interactBtn.classList.toggle('visible', canInteract);
+
+  updateBasementGuards(delta);
+
+  // Freeze movement while game over is up
+  if (basementSpotted) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  renderer.render(scene, camera);
+}
+
+function startTransition() {
+  if (transitioned) return;
+  transitioned = true;
+  promptEl.style.display = 'none';
+  crosshair.style.display = 'none';
+  hud.style.display = 'none';
+  mobileControls.classList.remove('visible');
+  interactBtn.classList.remove('visible');
+  document.exitPointerLock?.();
+  pointerLocked = false;
+
+  fade.classList.add('active');
+  setTimeout(() => {
+    container.style.display = 'none';
+    $('terminal-layer').style.display = 'flex';
+    fade.classList.remove('active');
+    runBoot();
+  }, 1100);
+}
+
+function returnTo3D() {
+  fade.classList.add('active');
+  setTimeout(() => {
+    // Hide terminal, show 3D
+    $('terminal-layer').style.display = 'none';
+    container.style.display = 'block';
+    $('back-btn').classList.remove('visible');
+    $('termination').classList.remove('active');
+    document.body.style.filter = '';
+
+    // Reset terminal UI for next visit
+    $('work').classList.add('hidden');
+    $('login').classList.add('hidden');
+    $('boot').style.display = 'none';
+    $('boot').innerHTML = '';
+    $('output').innerHTML = '';
+    $('choices').innerHTML = '';
+    $('choices').style.display = 'none';
+    $('login-msg').textContent = '';
+    $('login-msg').style.color = '#ff4a6a';
+    $('emp-id').value = '';
+    $('access-key').value = '';
+    $('header').querySelector('.logo').textContent = 'MANX CO, LTD';
+    $('header').querySelector('.logo').classList.remove('glitch');
+    $('footer').innerHTML = `
+      <div class="metric">COMPLIANCE: <span id="compliance">100</span>%</div>
+      <div class="metric">DIRECTIVES: <span id="processed">0</span></div>
+      <div class="metric">SESSION: <span id="session-time">00:00</span></div>`;
+
+    // Reset state for a fresh session next time
+    state.compliance = 100;
+    state.processed = 0;
+    state.currentDirective = 0;
+    state.bossMode = false;
+    state.terminatedCount = 0;
+    state.retainedCount = 0;
+    state.flags = { askedQuestions: 0, hesitated: 0, deletedFiles: 0, peripheral: false };
+    updateMetrics();
+
+    // Re-enable 3D
+    transitioned = false;
+    hud.style.display = 'block';
+    if (!isTouch) {
+      crosshair.style.display = 'block';
+      setTimeout(lockPointer, 150);
+    } else {
+      mobileControls.classList.add('visible');
+    }
+
+    // Put player a bit away from the desk so they can walk up again
+    if (camera) {
+      camera.position.set(0, 1.6, 5);
+    }
+
+    fade.classList.remove('active');
+  }, 700);
+}
+
+function setupMobileControls() {
+  const leftZone = $('joy-left');
+  const stickL = $('stick-left');
+
+  function handleMove(e) {
+    e.preventDefault();
+    const touch = e.changedTouches ? e.changedTouches[0] : e;
+    const r = leftZone.getBoundingClientRect();
+    let dx = touch.clientX - (r.left + r.width/2);
+    let dy = touch.clientY - (r.top + r.height/2);
+    const max = 40, len = Math.sqrt(dx*dx+dy*dy);
+    if (len > max) { dx = dx/len*max; dy = dy/len*max; }
+    stickL.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+    stickL.classList.add('active');
+    mobile.moveX = dx/max;
+    mobile.moveY = dy/max;
+  }
+  function endMove() {
+    stickL.style.transform = 'translate(-50%,-50%)';
+    stickL.classList.remove('active');
+    mobile.moveX = 0;
+    mobile.moveY = 0;
+  }
+
+  leftZone.addEventListener('touchstart', handleMove, {passive:false});
+  leftZone.addEventListener('touchmove', handleMove, {passive:false});
+  leftZone.addEventListener('touchend', endMove);
+  leftZone.addEventListener('touchcancel', endMove);
+  interactBtn.addEventListener('touchstart', e => { e.preventDefault(); if (canInteract) tryInteract(); }, {passive:false});
+
+  // Screen drag to look (anywhere except joystick / E)
+  document.addEventListener('touchstart', e => {
+    for (const touch of e.changedTouches) {
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (el && (el.closest('#joy-left') || el.closest('#interact-btn') || el.closest('#terminal-layer'))) continue;
+      if (touchLookId === null) {
+        touchLookId = touch.identifier;
+        touchLookLast = { x: touch.clientX, y: touch.clientY };
+      }
+    }
+  }, {passive:true});
+  document.addEventListener('touchmove', e => {
+    if (touchLookId === null) return;
+    for (const touch of e.changedTouches) {
+      if (touch.identifier !== touchLookId) continue;
+      mobile.lookDX += touch.clientX - touchLookLast.x;
+      mobile.lookDY += touch.clientY - touchLookLast.y;
+      touchLookLast = { x: touch.clientX, y: touch.clientY };
+    }
+  }, {passive:true});
+  document.addEventListener('touchend', e => {
+    for (const touch of e.changedTouches) {
+      if (touch.identifier === touchLookId) { touchLookId = null; touchLookLast = null; }
+    }
+  });
+}
+
+// Auto-start into 3D after Three.js loads
+hud.style.display = 'block';
+loadThree(() => {
+  init3D();
+  if (isTouch) {
+    crosshair.style.display = 'none';
+  } else {
+    crosshair.style.display = 'block';
+  }
+});
+
+
+let mobileShown = false;
+document.addEventListener('touchstart', () => {
+  if (isTouch && !transitioned && !mobileShown) {
+    mobileControls.classList.add('visible');
+    mobileShown = true;
+  }
+}, {passive:true});
+
+document.addEventListener('click', () => {
+  if (!isTouch && !transitioned && !pointerLocked && renderer) lockPointer();
+});
+
+// ===== TERMINAL =====
+const state = {
+  compliance: 100, processed: 0, sessionStart: null,
+  currentDirective: 0, employeeId: '', bossMode: false,
+  terminatedCount: 0, retainedCount: 0,
+  flags: { askedQuestions: 0, hesitated: 0, deletedFiles: 0, peripheral: false }
+};
+
+const directives = [
+  {
+    text: [
+      {cls:'system', t:'> NEW DIRECTIVE RECEIVED'}, {cls:'', t:''},
+      {cls:'', t:'MEMORANDUM  17-A / PRIORITY: ROUTINE'},
+      {cls:'', t:'FROM:      CENTRAL ALLOCATION'},
+      {cls:'', t:'SUBJECT:   RESOURCE REALIGNMENT'}, {cls:'', t:''},
+      {cls:'', t:'Unit 47-B has been flagged for reallocation.'},
+      {cls:'', t:'Current assignment is no longer optimal.'}, {cls:'', t:''},
+      {cls:'ghost', t:'(Unit 47-B previously handled internal correspondence)'}, {cls:'', t:''},
+      {cls:'', t:'Select action:'}
+    ],
+    choices: [
+      {label:'Approve reallocation', effect:()=>{ state.compliance+=2; if(!checkCompliance()) advance(); }},
+      {label:'Request clarification on Unit 47-B', effect:()=>{ state.flags.askedQuestions++; state.compliance-=8; if(!checkCompliance()) showClarification(); }},
+      {label:'Mark for further review', effect:()=>{ state.flags.hesitated++; state.compliance-=4; if(!checkCompliance()) advance(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> NEW DIRECTIVE RECEIVED'}, {cls:'', t:''},
+      {cls:'', t:'MEMORANDUM  19-C / PRIORITY: ELEVATED'},
+      {cls:'', t:'FROM:      PERIPHERAL COORDINATION'},
+      {cls:'', t:'SUBJECT:   ARCHIVE PURGE — BATCH 03'}, {cls:'', t:''},
+      {cls:'', t:'The following records have been designated non-essential.'}, {cls:'', t:''},
+      {cls:'ghost', t:'• Personnel evaluation — K. MARSH (1991-03)'},
+      {cls:'ghost', t:'• Incident report  — Floor 7 / Sublevel'},
+      {cls:'ghost', t:'• Internal memo    — "Regarding the silence"'}, {cls:'', t:''},
+      {cls:'', t:'Proceed?'}
+    ],
+    choices: [
+      {label:'Authorize permanent deletion', effect:()=>{ state.flags.deletedFiles++; state.compliance+=5; if(!checkCompliance()) advance(); }},
+      {label:'Preserve one record for audit', effect:()=>{ state.compliance-=12; state.flags.askedQuestions++; if(!checkCompliance()) advance(); }},
+      {label:'Decline — request source authority', effect:()=>{ state.compliance-=18; state.flags.askedQuestions+=2; if(!checkCompliance()) advance(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> NEW DIRECTIVE RECEIVED'}, {cls:'', t:''},
+      {cls:'', t:'MEMORANDUM  22-F / PRIORITY: INTERNAL'},
+      {cls:'', t:'FROM:      [REDACTED]'},
+      {cls:'', t:'SUBJECT:   OBSERVATION WINDOW'}, {cls:'', t:''},
+      {cls:'', t:'Your terminal has been selected for passive monitoring calibration.'}, {cls:'', t:''},
+      {cls:'', t:'Please remain at your station. Do not power down.'}, {cls:'', t:''},
+      {cls:'ghost', t:'Estimated duration: variable'}, {cls:'', t:''},
+      {cls:'', t:'Acknowledge:'}
+    ],
+    choices: [
+      {label:'Acknowledge and remain', effect:()=>{ state.compliance+=3; if(!checkCompliance()) advance(); }},
+      {label:'Request estimated duration', effect:()=>{ state.flags.askedQuestions++; state.compliance-=10; if(!checkCompliance()) showDurationReply(); }},
+      {label:'Report discomfort with monitoring', effect:()=>{ state.compliance-=22; state.flags.hesitated++; if(!checkCompliance()) advance(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> NEW DIRECTIVE RECEIVED'}, {cls:'', t:''},
+      {cls:'', t:'MEMORANDUM  24-B / PRIORITY: ROUTINE'},
+      {cls:'', t:'FROM:      HUMAN RESOURCES'},
+      {cls:'', t:'SUBJECT:   COLLEAGUE STATUS UPDATE'}, {cls:'', t:''},
+      {cls:'', t:'The previous occupant of this terminal has been reassigned'},
+      {cls:'', t:'to Peripheral Coordination.'}, {cls:'', t:''},
+      {cls:'', t:'Their credentials have been revoked. Their desk has been cleared.'}, {cls:'', t:''},
+      {cls:'ghost', t:'No further information is available. Do not inquire further.'}, {cls:'', t:''},
+      {cls:'', t:'Confirm understanding:'}
+    ],
+    choices: [
+      {label:'Understood. Continue duties.', effect:()=>{ state.compliance+=4; if(!checkCompliance()) advance(); }},
+      {label:'What is Peripheral Coordination?', effect:()=>{ state.flags.askedQuestions+=2; state.compliance-=15; if(!checkCompliance()) showPeripheral(); }},
+      {label:'I would like to speak with them', effect:()=>{ state.compliance-=25; state.flags.hesitated++; if(!checkCompliance()) advance(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> NEW DIRECTIVE RECEIVED'}, {cls:'', t:''},
+      {cls:'', t:'MEMORANDUM  27-A / PRIORITY: FINAL'},
+      {cls:'', t:'FROM:      CENTRAL ALLOCATION'},
+      {cls:'', t:'SUBJECT:   PERFORMANCE SUMMARY'}, {cls:'', t:''},
+      {cls:'', t:'Your session metrics have been reviewed.'},
+      {cls:'', t:'A determination has been reached.'}, {cls:'', t:''},
+      {cls:'ghost', t:'Further instructions will follow. Remain at your station.'}
+    ],
+    choices: []
+  }
+];
+
+const investigations = [
+  {
+    text: [
+      {cls:'system', t:'> PERSONNEL REVIEW PROTOCOL'}, {cls:'', t:''},
+      {cls:'', t:'CASE FILE  04-A'},
+      {cls:'', t:'EMPLOYEE:  R. HALE  //  ID 7731'},
+      {cls:'', t:'DEPT:      Document Control'}, {cls:'', t:''},
+      {cls:'', t:'FLAGGED BEHAVIORS:'},
+      {cls:'ghost', t:'• Requested clarification on three directives'},
+      {cls:'ghost', t:'• Hesitated 4.2 seconds before authorizing a purge'},
+      {cls:'ghost', t:'• Asked a colleague "Do you ever wonder what happens to them?"'}, {cls:'', t:''},
+      {cls:'', t:'Recommendation required.'}
+    ],
+    choices: [
+      {label:'Terminate employment', effect:()=>{ state.terminatedCount++; bossAdvance(); }},
+      {label:'Retain — issue formal warning', effect:()=>{ state.retainedCount++; bossAdvance(); }},
+      {label:'Reassign to Peripheral Coordination', effect:()=>{ state.terminatedCount++; bossAdvance(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> PERSONNEL REVIEW PROTOCOL'}, {cls:'', t:''},
+      {cls:'', t:'CASE FILE  07-C'},
+      {cls:'', t:'EMPLOYEE:  M. VOSS  //  ID 4419'},
+      {cls:'', t:'DEPT:      Systems Monitoring'}, {cls:'', t:''},
+      {cls:'', t:'FLAGGED BEHAVIORS:'},
+      {cls:'ghost', t:'• Perfect compliance (100%) for 14 consecutive cycles'},
+      {cls:'ghost', t:'• Never requested clarification'},
+      {cls:'ghost', t:'• Arrives 11 minutes early every shift'}, {cls:'', t:''},
+      {cls:'warn', t:'NOTE: Absolute compliance can indicate concealment.'}, {cls:'', t:''},
+      {cls:'', t:'Recommendation required.'}
+    ],
+    choices: [
+      {label:'Terminate — suspicious perfection', effect:()=>{ state.terminatedCount++; bossAdvance(); }},
+      {label:'Retain — model employee', effect:()=>{ state.retainedCount++; bossAdvance(); }},
+      {label:'Increase observation window', effect:()=>{ state.retainedCount++; bossAdvance(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> PERSONNEL REVIEW PROTOCOL'}, {cls:'', t:''},
+      {cls:'', t:'CASE FILE  12-F'},
+      {cls:'', t:'EMPLOYEE:  K. MARSH  //  ID 2094'},
+      {cls:'', t:'DEPT:      Archive Maintenance'}, {cls:'', t:''},
+      {cls:'', t:'FLAGGED BEHAVIORS:'},
+      {cls:'ghost', t:'• Name appears in a deleted incident report'},
+      {cls:'ghost', t:'• Previously marked for purge, then restored'},
+      {cls:'ghost', t:'• Current status: Active (unexpected)'}, {cls:'', t:''},
+      {cls:'error', t:'FILE INCONSISTENCY DETECTED'}, {cls:'', t:''},
+      {cls:'', t:'Recommendation required.'}
+    ],
+    choices: [
+      {label:'Terminate and purge all traces', effect:()=>{ state.terminatedCount++; bossAdvance(); }},
+      {label:'Retain and open deeper investigation', effect:()=>{ state.retainedCount++; bossAdvance(); }},
+      {label:'Mark as already handled', effect:()=>{ state.terminatedCount++; bossAdvance(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> PERSONNEL REVIEW PROTOCOL'}, {cls:'', t:''},
+      {cls:'', t:'CASE FILE  15-B'},
+      {cls:'', t:'EMPLOYEE:  [NO NAME]  //  ID 0000'},
+      {cls:'', t:'DEPT:      —'}, {cls:'', t:''},
+      {cls:'', t:'FLAGGED BEHAVIORS:'},
+      {cls:'ghost', t:'• Credentials exist but no personnel record'},
+      {cls:'ghost', t:'• Terminal access logged when floor is sealed'},
+      {cls:'ghost', t:'• File size: 0 bytes'}, {cls:'', t:''},
+      {cls:'warn', t:'This entry should not be visible.'}, {cls:'', t:''},
+      {cls:'', t:'Recommendation required.'}
+    ],
+    choices: [
+      {label:'Terminate — eliminate anomaly', effect:()=>{ state.terminatedCount++; bossAdvance(); }},
+      {label:'Leave undisturbed', effect:()=>{ state.retainedCount++; bossAdvance(); }},
+      {label:'Attempt to open the file', effect:()=>{ state.retainedCount++; bossSpecial(); }}
+    ]
+  },
+  {
+    text: [
+      {cls:'system', t:'> REVIEW CYCLE COMPLETE'}, {cls:'', t:''},
+      {cls:'', t:'All pending cases have been processed.'},
+      {cls:'', t:'A summary has been generated for the record.'}
+    ],
+    choices: []
+  }
+];
+
+function typeLines(lines, container, callback) {
+  container.innerHTML = '';
+  let i = 0;
+  function next() {
+    if (i >= lines.length) { if (callback) callback(); return; }
+    const line = lines[i];
+    const div = document.createElement('div');
+    div.className = 'term-line ' + (line.cls||'');
+    div.textContent = line.t;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    i++;
+    setTimeout(next, line.t === '' ? 70 : 35 + Math.random()*25);
+  }
+  next();
+}
+
+function updateMetrics() {
+  const d = Math.max(0, Math.min(100, Math.round(state.compliance)));
+  $('compliance').textContent = d;
+  $('processed').textContent = state.processed;
+  $('compliance').style.color = state.compliance < 40 ? '#ff4a6a' : state.compliance < 70 ? '#ff9a4a' : '#4aff9a';
+}
+
+function checkCompliance() {
+  updateMetrics();
+  if (state.compliance <= 0) {
+    state.compliance = 0; updateMetrics();
+    $('choices').style.display = 'none';
+    setTimeout(() => {
+      $('termination').classList.add('active');
+      $('header').querySelector('.logo').classList.add('glitch');
+      document.body.style.filter = 'grayscale(0.55) contrast(1.15)';
+    }, 600);
+    return true;
+  }
+  return false;
+}
+
+function startTimer() {
+  state.sessionStart = Date.now();
+  setInterval(() => {
+    const e = Math.floor((Date.now()-state.sessionStart)/1000);
+    $('session-time').textContent = String(Math.floor(e/60)).padStart(2,'0') + ':' + String(e%60).padStart(2,'0');
+  }, 1000);
+}
+
+function runBoot() {
+  $('boot').style.display = 'block';
+  typeLines([
+    {cls:'system', t:'MANX CO, LTD  —  SYSTEMS INTERFACE'},
+    {cls:'', t:'Firmware 3.1.9  //  Build 1992.08.14'}, {cls:'', t:''},
+    {cls:'', t:'Initializing memory map ............... OK'},
+    {cls:'', t:'Loading allocation tables ............. OK'},
+    {cls:'', t:'Verifying node integrity .............. OK'},
+    {cls:'', t:'Establishing secure channel ........... OK'}, {cls:'', t:''},
+    {cls:'warn', t:'NOTICE: This terminal is monitored.'},
+    {cls:'warn', t:'All activity is recorded and retained.'}, {cls:'', t:''},
+    {cls:'', t:'Press any key to continue...'}
+  ], $('boot'), () => {
+    document.addEventListener('keydown', afterBoot, {once:true});
+    document.addEventListener('click', afterBoot, {once:true});
+  });
+}
+
+function afterBoot() {
+  $('boot').style.display = 'none';
+  $('login').classList.remove('hidden');
+  $('node-id').textContent = '0x' + Math.floor(Math.random()*0xFFFF).toString(16).toUpperCase().padStart(4,'0');
+}
+
+$('login-btn').addEventListener('click', tryLogin);
+$('emp-id').addEventListener('keydown', e => { if (e.key==='Enter') tryLogin(); });
+$('access-key').addEventListener('keydown', e => { if (e.key==='Enter') tryLogin(); });
+
+function tryLogin() {
+  const id = $('emp-id').value.trim().toUpperCase();
+  if (!id) { $('login-msg').textContent = 'EMPLOYEE ID REQUIRED'; return; }
+  state.employeeId = id;
+
+  if (id === 'MANX') {
+    state.bossMode = true;
+    $('login-msg').textContent = 'EXECUTIVE ACCESS GRANTED — LOADING REVIEW PROTOCOL...';
+    $('login-msg').style.color = '#7a8cff';
+  } else {
+    $('login-msg').textContent = 'CREDENTIALS ACCEPTED — SESSION OPENING...';
+  }
+
+  setTimeout(() => {
+    $('login').classList.add('hidden');
+    $('work').classList.remove('hidden');
+    startTimer();
+    if (state.bossMode) {
+      $('footer').innerHTML = `
+        <div class="metric">TERMINATED: <span id="term-count" style="color:#ff4a6a">0</span></div>
+        <div class="metric">RETAINED: <span id="ret-count" style="color:#4aff9a">0</span></div>
+        <div class="metric">SESSION: <span id="session-time">00:00</span></div>`;
+      $('header').querySelector('.logo').textContent = 'MANX CO, LTD — EXECUTIVE';
+      loadInvestigation(0);
+    } else {
+      loadDirective(0);
+    }
+  }, 800);
+}
+
+function loadDirective(idx) {
+  state.currentDirective = idx;
+  const d = directives[idx];
+  const out = $('output'), ch = $('choices');
+  ch.style.display = 'none'; ch.innerHTML = '';
+  typeLines(d.text, out, () => {
+    if (idx === 4) { setTimeout(showEnding, 1000); return; }
+    d.choices.forEach(c => {
+      const btn = document.createElement('button');
+      btn.className = 'choice'; btn.textContent = '> ' + c.label;
+      btn.onclick = () => { ch.style.display='none'; c.effect(); };
+      ch.appendChild(btn);
+    });
+    ch.style.display = 'block';
+  });
+}
+
+function loadInvestigation(idx) {
+  state.currentDirective = idx;
+  const d = investigations[idx];
+  const out = $('output'), ch = $('choices');
+  ch.style.display = 'none'; ch.innerHTML = '';
+  const tc = $('term-count'), rc = $('ret-count');
+  if (tc) tc.textContent = state.terminatedCount;
+  if (rc) rc.textContent = state.retainedCount;
+  typeLines(d.text, out, () => {
+    if (idx === 4) { setTimeout(showBossEnding, 1000); return; }
+    d.choices.forEach(c => {
+      const btn = document.createElement('button');
+      btn.className = 'choice'; btn.textContent = '> ' + c.label;
+      btn.onclick = () => { ch.style.display='none'; c.effect(); };
+      ch.appendChild(btn);
+    });
+    ch.style.display = 'block';
+  });
+}
+
+function advance() {
+  state.processed++; updateMetrics();
+  if (state.compliance <= 0) return;
+  setTimeout(() => loadDirective(state.currentDirective+1), 500);
+}
+
+function bossAdvance() {
+  state.processed++;
+  const tc = $('term-count'), rc = $('ret-count');
+  if (tc) tc.textContent = state.terminatedCount;
+  if (rc) rc.textContent = state.retainedCount;
+  setTimeout(() => loadInvestigation(state.currentDirective+1), 600);
+}
+
+function bossSpecial() {
+  typeLines([
+    {cls:'system', t:'> ATTEMPTING FILE ACCESS...'}, {cls:'', t:''},
+    {cls:'error', t:'ACCESS DENIED'}, {cls:'error', t:'ACCESS DENIED'}, {cls:'error', t:'ACCESS DENIED'}, {cls:'', t:''},
+    {cls:'ghost', t:'The file is empty.'},
+    {cls:'ghost', t:'Or it is looking back.'}, {cls:'', t:''},
+    {cls:'warn', t:'This interaction has been logged at a higher level.'}
+  ], $('output'), () => setTimeout(bossAdvance, 2000));
+}
+
+function showClarification() {
+  typeLines([
+    {cls:'system', t:'> QUERY LOGGED'}, {cls:'', t:''},
+    {cls:'ghost', t:'Central Allocation does not provide clarification.'},
+    {cls:'ghost', t:'The request has been noted.'}, {cls:'', t:''},
+    {cls:'warn', t:'Your inquiry has been appended to file.'}
+  ], $('output'), () => setTimeout(advance, 1400));
+}
+function showDurationReply() {
+  typeLines([
+    {cls:'system', t:'> QUERY LOGGED'}, {cls:'', t:''},
+    {cls:'ghost', t:'Duration is determined by necessity.'},
+    {cls:'ghost', t:'Necessity is determined centrally.'}, {cls:'', t:''},
+    {cls:'warn', t:'Remain at your station.'}
+  ], $('output'), () => setTimeout(advance, 1400));
+}
+function showPeripheral() {
+  typeLines([
+    {cls:'system', t:'> QUERY LOGGED'}, {cls:'', t:''},
+    {cls:'error', t:'ACCESS DENIED'}, {cls:'', t:''},
+    {cls:'ghost', t:'Peripheral Coordination is not a destination'},
+    {cls:'ghost', t:'that can be described from this node.'}, {cls:'', t:''},
+    {cls:'warn', t:'Further inquiry is discouraged.'}
+  ], $('output'), () => setTimeout(advance, 1600));
+}
+
+function showEnding() {
+  $('choices').style.display = 'none';
+  const c = state.compliance, q = state.flags.askedQuestions;
+  let lines;
+  if (c >= 85 && q <= 1) {
+    jobComplete = true;
+    lines = [
+      {cls:'system', t:'> DETERMINATION: SATISFACTORY'}, {cls:'', t:''},
+      {cls:'', t:'Your compliance profile meets operational thresholds.'},
+      {cls:'', t:'You will continue in your present role.'}, {cls:'', t:''},
+      {cls:'ghost', t:'Do not discuss the contents of this session.'}, {cls:'', t:''},
+      {cls:'system', t:'SESSION SUSPENDED — AWAITING NEXT CYCLE'}
+    ];
+  } else if (c >= 50) {
+    jobComplete = true;
+    lines = [
+      {cls:'system', t:'> DETERMINATION: CONDITIONAL'}, {cls:'', t:''},
+      {cls:'', t:'Certain responses have been flagged. Your file has been updated.'},
+      {cls:'', t:'Closer observation has been authorized.'}, {cls:'', t:''},
+      {cls:'ghost', t:'This is not a punishment. This is an adjustment.'}, {cls:'', t:''},
+      {cls:'system', t:'SESSION CONTINUES — MONITORING ACTIVE'}
+    ];
+  } else {
+    lines = [
+      {cls:'system', t:'> DETERMINATION: REALIGNMENT REQUIRED'}, {cls:'', t:''},
+      {cls:'error', t:'Your compliance metrics fall below acceptable parameters.'}, {cls:'', t:''},
+      {cls:'', t:'You have been reassigned to Peripheral Coordination.'}, {cls:'', t:''},
+      {cls:'ghost', t:'Credentials will be revoked. Leave your station tidy.'},
+      {cls:'', t:'Someone will be along shortly.'}, {cls:'', t:''},
+      {cls:'system', t:'SESSION TERMINATED'}
+    ];
+    state.flags.peripheral = true;
+  }
+  typeLines(lines, $('output'), () => {
+    if (state.flags.peripheral) {
+      setTimeout(() => {
+        document.body.style.filter = 'grayscale(0.7) contrast(1.2)';
+        $('header').querySelector('.logo').classList.add('glitch');
+      }, 700);
+    }
+    setTimeout(() => $('back-btn').classList.add('visible'), 400);
+  });
+}
+
+function showBossEnding() {
+  $('choices').style.display = 'none';
+  jobComplete = true; // executive review counts as completing the shift
+  const total = state.terminatedCount + state.retainedCount;
+  const termPct = total > 0 ? Math.round(state.terminatedCount/total*100) : 0;
+  const retPct = total > 0 ? Math.round(state.retainedCount/total*100) : 0;
+  let lines = [
+    {cls:'system', t:'> EXECUTIVE REVIEW SUMMARY'}, {cls:'', t:''},
+    {cls:'', t:'─────────────────────────────────'},
+    {cls:'', t:`  Cases reviewed:          ${total}`},
+    {cls:'', t:`  Terminations issued:     ${state.terminatedCount}  (${termPct}%)`},
+    {cls:'', t:`  Personnel retained:      ${state.retainedCount}  (${retPct}%)`},
+    {cls:'', t:'─────────────────────────────────'}, {cls:'', t:''}
+  ];
+  if (state.terminatedCount === 0) {
+    lines.push({cls:'warn', t:'TERMINATION RATE: 0%'}, {cls:'', t:''},
+      {cls:'ghost', t:'No personnel were removed. This deviation has been logged.'});
+  } else if (state.terminatedCount >= 3) {
+    lines.push({cls:'', t:`TERMINATION RATE: ${termPct}%`}, {cls:'', t:''},
+      {cls:'ghost', t:'The floor will be quieter tomorrow.'});
+  } else {
+    lines.push({cls:'', t:`TERMINATION RATE: ${termPct}%`}, {cls:'', t:''},
+      {cls:'ghost', t:'Balance is acceptable.'});
+  }
+  lines.push({cls:'', t:''}, {cls:'system', t:'REVIEW PROTOCOL CLOSED'}, {cls:'', t:''},
+    {cls:'ghost', t:'You may leave the terminal when ready.'});
+  typeLines(lines, $('output'), () => {
+    setTimeout(() => $('back-btn').classList.add('visible'), 400);
+  });
+}
+
+function handleTerminalBack() {
+  // Failed terminal (compliance 0 or peripheral reassignment) → bad ending
+  if (state.compliance <= 0 || state.flags.peripheral || $('termination').classList.contains('active')) {
+    showEndingScreen('bad');
+    return;
+  }
+  // Satisfactory / conditional → return to facility
+  returnTo3D();
+}
+$('back-btn').addEventListener('click', handleTerminalBack);
+$('term-back-btn').addEventListener('click', () => showEndingScreen('bad'));
+$('restart-basement-btn').addEventListener('click', restartBasement);
+
+updateMetrics();
+</script>
+</body>
+</html>

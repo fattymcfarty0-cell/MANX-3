@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c10">
+<title>MANX — AFTER PART 2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #050508; overflow: hidden;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    color: #c0c8d8; height: 100vh; width: 100vw; position: fixed;
+  }
+  #boot {
+    position: fixed; inset: 0; z-index: 40; background: #050508;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 30px; transition: opacity 1s;
+  }
+  #boot.fade { opacity: 0; pointer-events: none; }
+  #boot.hidden { display: none; }
+  #boot h1 { color: #7a8cff; font-size: 18px; letter-spacing: 3px; margin-bottom: 12px; }
+  #boot p { color: #5a6a80; font-size: 13px; line-height: 1.7; max-width: 360px; }
+  #boot button {
+    margin-top: 24px; background: #1a2040; border: 1px solid #3a4aff;
+    color: #a0b8ff; padding: 12px 24px; font-family: inherit; font-size: 13px;
+    letter-spacing: 1px; cursor: pointer;
+  }
+
+  #canvas-wrap { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #hud {
+    position: fixed; top: 12px; left: 12px; z-index: 10;
+    font-size: 12px; color: #5a6a80; line-height: 1.55; pointer-events: none;
+  }
+  #hud .warn { color: #ff6a7a; }
+  #hud .ok { color: #7a8cff; }
+  #prompt {
+    position: fixed; bottom: 16%; left: 50%; transform: translateX(-50%);
+    background: rgba(10,12,20,0.9); border: 1px solid #3a4a6a;
+    padding: 10px 16px; font-size: 13px; color: #a0b8ff;
+    z-index: 10; display: none; pointer-events: none; text-align: center;
+  }
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; width: 5px; height: 5px;
+    margin: -2px 0 0 -2px; border: 1px solid rgba(180,200,255,0.4);
+    border-radius: 50%; z-index: 10; pointer-events: none; display: none;
+  }
+  #spotted {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(40,0,0,0.55); pointer-events: none;
+  }
+  #spotted.on { display: block; }
+  #gameover {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    flex-direction: column; justify-content: center; align-items: center;
+    background: rgba(5,5,8,0.94); text-align: center; padding: 24px;
+  }
+  #gameover.visible { display: flex; }
+  #gameover h2 { color: #ff4a6a; font-size: 22px; letter-spacing: 3px; margin-bottom: 12px; }
+  #gameover p { color: #8a9ab0; font-size: 13px; margin-bottom: 20px; max-width: 340px; line-height: 1.6; }
+  #gameover button {
+    background: #1a2040; border: 1px solid #3a4aff; color: #a0b8ff;
+    padding: 12px 22px; font-family: inherit; font-size: 13px; cursor: pointer;
+  }
+
+  #mobile {
+    position: fixed; inset: 0; pointer-events: none; z-index: 15; display: none;
+  }
+  #mobile.visible { display: block; }
+  .joy {
+    position: absolute; bottom: 24px; left: 16px; width: 110px; height: 110px;
+    pointer-events: auto; touch-action: none;
+  }
+  .joy-base {
+    width: 96px; height: 96px; border-radius: 50%;
+    background: rgba(20,25,40,0.55); border: 2px solid rgba(100,120,180,0.35);
+    position: absolute; top: 7px; left: 7px;
+  }
+  .joy-stick {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(90,120,220,0.55); border: 2px solid rgba(140,170,255,0.6);
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  }
+  #crouch-btn {
+    position: absolute; bottom: 36px; right: 20px;
+    width: 70px; height: 70px; border-radius: 50%;
+    background: rgba(30,40,70,0.75); border: 2px solid #4a5aff;
+    color: #a0b8ff; font-family: inherit; font-size: 11px; letter-spacing: 1px;
+    pointer-events: auto; touch-action: none;
+  }
+  #crouch-btn.active { background: rgba(60,40,80,0.9); border-color: #c080ff; }
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <h1>MANX — AFTER // PART 2</h1>
+  <p>The hatch opened onto more building than maps allow.<br><br>
+  Lobby is safe. Beyond it — the residue keeps growing.<br><br>
+  Hide. Move. The goal never stops.</p>
+  <button id="start-btn">ENTER LOBBY</button>
+</div>
+
+<div id="canvas-wrap"></div>
+<div id="crosshair"></div>
+<div id="hud">
+  <span class="ok" id="hud-zone">LOBBY // SAFE</span><br>
+  <span id="hud-goal">Goal: leave through the street door</span><br>
+  <span id="hud-depth"></span>
+</div>
+<div id="prompt"></div>
+<div id="spotted"></div>
+<div id="gameover">
+  <h2>DETECTED</h2>
+  <p>A residue unit found you. The corridor folds you back.</p>
+  <button id="retry-btn">TRY AGAIN</button>
+</div>
+
+<div id="mobile">
+  <div class="joy" id="joy"><div class="joy-base"><div class="joy-stick" id="stick"></div></div></div>
+  <button id="crouch-btn">HIDE</button>
+</div>
+
+<script>
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+const $ = id => document.getElementById(id);
+
+let scene, camera, renderer, root;
+let pointerLocked = false;
+let inLobby = true;
+let crouching = false;
+let gameOver = false;
+let depth = 0;
+let goalPos = null;
+let exitDoor = null;
+let monsters = [];
+let coverProps = [];
+let generatedChunks = new Set();
+const CELL = 12;
+const keys = { w:false, a:false, s:false, d:false };
+let clock = null;
+let euler = null;
+const PI_2 = Math.PI / 2;
+const mobile = { moveX:0, moveY:0, lookDX:0, lookDY:0 };
+let touchLookId = null, touchLookLast = null;
+
+const MOVE = 5.5;
+const CROUCH_MOVE = 2.8;
+const PLAYER_H = 1.6;
+const CROUCH_H = 1.05;
+
+function loadThree(cb) {
+  if (window.THREE) { cb(); return; }
+  const urls = [
+    'https://unpkg.com/three@0.160.0/build/three.min.js',
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js'
+  ];
+  let i = 0;
+  function tryNext() {
+    if (i >= urls.length) {
+      alert('Could not load 3D engine. Check your connection and try again.');
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = urls[i++];
+    s.onload = () => cb();
+    s.onerror = () => tryNext();
+    document.head.appendChild(s);
+  }
+  tryNext();
+}
+
+function startPart2() {
+  const btn = $('start-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'LOADING…'; }
+  loadThree(() => {
+    clock = new THREE.Clock();
+    euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    goalPos = new THREE.Vector3(0, 0, -20);
+    $('boot').classList.add('fade');
+    setTimeout(() => {
+      $('boot').classList.add('hidden');
+      init();
+      if (!isTouch) {
+        $('crosshair').style.display = 'block';
+        setTimeout(() => renderer.domElement.requestPointerLock?.(), 150);
+      } else $('mobile').classList.add('visible');
+    }, 400);
+  });
+}
+
+$('start-btn').addEventListener('click', function(e) {
+  e.preventDefault();
+  startPart2();
+});
+$('start-btn').addEventListener('touchend', function(e) {
+  e.preventDefault();
+  startPart2();
+}, {passive:false});
+
+$('retry-btn').onclick = () => {
+  $('gameover').classList.remove('visible');
+  gameOver = false;
+  $('spotted').classList.remove('on');
+  // Reset to lobby
+  clearWorld();
+  inLobby = true;
+  depth = 0;
+  generatedChunks.clear();
+  monsters = [];
+  coverProps = [];
+  buildLobby();
+  camera.position.set(0, PLAYER_H, 6);
+  euler.set(0, 0, 0);
+  camera.quaternion.setFromEuler(euler);
+  updateHud();
+  if (!isTouch) setTimeout(() => renderer.domElement.requestPointerLock?.(), 100);
+};
+
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1e28);
+  scene.fog = new THREE.Fog(0x1a1e28, 10, 38);
+
+  camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 80);
+  camera.position.set(0, PLAYER_H, 6);
+
+  renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  $('canvas-wrap').appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x5a6a88, 0.9));
+  const l = new THREE.PointLight(0xffffff, 1.2, 28);
+  l.position.set(0, 5, 2); scene.add(l);
+
+  root = new THREE.Group();
+  scene.add(root);
+
+  buildLobby();
+  setupInput();
+  if (isTouch) setupMobile();
+  animate();
+}
+
+function clearWorld() {
+  while (root.children.length) root.remove(root.children[0]);
+  monsters.forEach(m => { if (m.mesh) scene.remove(m.mesh); if (m.light) scene.remove(m.light); });
+  monsters = [];
+  coverProps = [];
+  exitDoor = null;
+}
+
+function box(w,h,d,color,x,y,z, parent) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.85 })
+  );
+  m.position.set(x,y,z);
+  (parent || root).add(m);
+  return m;
+}
+
+function buildLobby() {
+  clearWorld();
+  inLobby = true;
+  scene.background = new THREE.Color(0x1a1e28);
+  scene.fog = new THREE.Fog(0x1a1e28, 10, 38);
+
+  // Floor ceiling
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), new THREE.MeshStandardMaterial({ color: 0x2a3040 }));
+  fl.rotation.x = -Math.PI/2; root.add(fl);
+  const cl = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), new THREE.MeshStandardMaterial({ color: 0x222830 }));
+  cl.rotation.x = Math.PI/2; cl.position.y = 4.5; root.add(cl);
+
+  // Walls
+  box(24, 4.5, 0.3, 0x252a38, 0, 2.25, -8, root);
+  box(0.3, 4.5, 18, 0x252a38, -12, 2.25, 1, root);
+  box(0.3, 4.5, 18, 0x252a38, 12, 2.25, 1, root);
+  // Front with exit gap toward - wait: street behind is +z, infinite starts through back? 
+  // User: leave lobby = real game. Use the LOGO wall door as exit into infinite (behind logo / -z)
+  // Actually street was +z. For part 2: the "wrong" path is through a side/service door into residue.
+  // Service door on back wall (-z) into infinite.
+
+  box(9, 4.5, 0.3, 0x252a38, -7.5, 2.25, 9, root);
+  box(9, 4.5, 0.3, 0x252a38, 7.5, 2.25, 9, root);
+  // street doors closed
+  box(2.8, 3.2, 0.15, 0x3a4558, 0, 1.6, 9, root);
+
+  // Logo
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#7a8cff'; ctx.font = 'bold 40px Courier New, monospace'; ctx.textAlign = 'center';
+  ctx.fillText('MANX CO, LTD', 256, 50);
+  ctx.fillStyle = '#8a9ab0'; ctx.font = '24px Courier New, monospace';
+  ctx.fillText('happy to help!', 256, 95);
+  const tp = new THREE.Mesh(new THREE.PlaneGeometry(4, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+  tp.position.set(0, 2.8, -7.8); root.add(tp);
+
+  // Desk
+  box(4, 1.0, 1.2, 0x2a3348, -5, 0.5, -5, root);
+
+  // SERVICE / RESIDUE door on back wall — leaving lobby
+  exitDoor = box(2.4, 3.0, 0.2, 0x2a2030, 5, 1.5, -7.85, root);
+  box(0.9, 2.6, 0.08, 0x3a3040, 4.5, 1.4, -7.7, root);
+  box(0.9, 2.6, 0.08, 0x3a3040, 5.5, 1.4, -7.7, root);
+  const sc = document.createElement('canvas'); sc.width = 256; sc.height = 64;
+  const sctx = sc.getContext('2d');
+  sctx.fillStyle = '#1a1520'; sctx.fillRect(0,0,256,64);
+  sctx.fillStyle = '#ff8a9a'; sctx.font = '18px Courier New, monospace'; sctx.textAlign = 'center';
+  sctx.fillText('SERVICE — NO ENTRY', 128, 40);
+  const sp = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc) }));
+  sp.position.set(5, 3.2, -7.7); root.add(sp);
+
+  const pl = new THREE.PointLight(0x6a8cff, 0.6, 12); pl.position.set(5, 3, -6); root.add(pl);
+
+  updateHud();
+}
+
+function chunkKey(cx, cz) { return cx + ',' + cz; }
+
+function generateChunk(cx, cz) {
+  const key = chunkKey(cx, cz);
+  if (generatedChunks.has(key)) return;
+  generatedChunks.add(key);
+
+  const ox = cx * CELL;
+  const oz = cz * CELL;
+  const group = new THREE.Group();
+  root.add(group);
+
+  // Floor
+  const fl = new THREE.Mesh(
+    new THREE.PlaneGeometry(CELL - 0.15, CELL - 0.15),
+    new THREE.MeshStandardMaterial({ color: 0x141820 + (Math.random()*0x080808)|0, roughness: 0.9 })
+  );
+  fl.rotation.x = -Math.PI/2;
+  fl.position.set(ox, 0, oz);
+  group.add(fl);
+
+  // Ceiling sometimes
+  if (Math.random() > 0.2) {
+    const cl = new THREE.Mesh(
+      new THREE.PlaneGeometry(CELL - 0.15, CELL - 0.15),
+      new THREE.MeshStandardMaterial({ color: 0x0e1016 })
+    );
+    cl.rotation.x = Math.PI/2;
+    cl.position.set(ox, 3.8, oz);
+    group.add(cl);
+  }
+
+  // Walls with openings
+  const h = 3.8;
+  function wallSeg(x, y, z, w, d) {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.9 })
+    );
+    m.position.set(x, y, z); group.add(m);
+  }
+  // North
+  if (Math.random() > 0.25) {
+    wallSeg(ox - CELL*0.28, h/2, oz - CELL/2, CELL*0.35, 0.25);
+    wallSeg(ox + CELL*0.28, h/2, oz - CELL/2, CELL*0.35, 0.25);
+  } else wallSeg(ox, h/2, oz - CELL/2, CELL, 0.25);
+  // South
+  if (Math.random() > 0.25) {
+    wallSeg(ox - CELL*0.28, h/2, oz + CELL/2, CELL*0.35, 0.25);
+    wallSeg(ox + CELL*0.28, h/2, oz + CELL/2, CELL*0.35, 0.25);
+  } else wallSeg(ox, h/2, oz + CELL/2, CELL, 0.25);
+  // West
+  if (Math.random() > 0.25) {
+    wallSeg(ox - CELL/2, h/2, oz - CELL*0.28, 0.25, CELL*0.35);
+    wallSeg(ox - CELL/2, h/2, oz + CELL*0.28, 0.25, CELL*0.35);
+  } else wallSeg(ox - CELL/2, h/2, oz, 0.25, CELL);
+  // East
+  if (Math.random() > 0.25) {
+    wallSeg(ox + CELL/2, h/2, oz - CELL*0.28, 0.25, CELL*0.35);
+    wallSeg(ox + CELL/2, h/2, oz + CELL*0.28, 0.25, CELL*0.35);
+  } else wallSeg(ox + CELL/2, h/2, oz, 0.25, CELL);
+
+  // Cover props
+  const nProps = 1 + (Math.random()*3)|0;
+  for (let i = 0; i < nProps; i++) {
+    const px = ox + (Math.random()-0.5)*CELL*0.6;
+    const pz = oz + (Math.random()-0.5)*CELL*0.6;
+    const pw = 0.8 + Math.random()*1.2;
+    const ph = 0.9 + Math.random()*1.4;
+    const pd = 0.6 + Math.random()*1.0;
+    const prop = box(pw, ph, pd, 0x2a3040, px, ph/2, pz, group);
+    coverProps.push({ mesh: prop, r: Math.max(pw, pd) * 0.7 });
+  }
+
+  // Monster chance (not too close to lobby start)
+  if (cz < -1 && Math.random() > 0.55) {
+    spawnMonster(ox + (Math.random()-0.5)*4, oz + (Math.random()-0.5)*4);
+  }
+
+  // Moving goal further out
+  if (cz < -depth) {
+    depth = Math.max(depth, -cz);
+  }
+}
+
+function spawnMonster(x, z) {
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 1.8, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x1a1018, roughness: 0.7 })
+  );
+  body.position.set(x, 0.9, z);
+  scene.add(body);
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.4, 0.4, 0.4),
+    new THREE.MeshStandardMaterial({ color: 0x2a1520 })
+  );
+  head.position.set(0, 1.15, 0);
+  body.add(head);
+  const eye = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.08, 0.1),
+    new THREE.MeshBasicMaterial({ color: 0xff3355 })
+  );
+  eye.position.set(0, 1.2, 0.25);
+  body.add(eye);
+  const light = new THREE.PointLight(0xff2244, 0.45, 6);
+  light.position.set(x, 1.5, z);
+  scene.add(light);
+
+  monsters.push({
+    mesh: body,
+    light,
+    x, z,
+    angle: Math.random() * Math.PI * 2,
+    state: 'patrol', // patrol | chase | search
+    speed: 2.2 + Math.random() * 1.2,
+    sight: 9,
+    patrolT: Math.random() * 10
+  });
+}
+
+function ensureChunksAround(px, pz) {
+  const cx = Math.round(px / CELL);
+  const cz = Math.round(pz / CELL);
+  for (let dz = -2; dz <= 2; dz++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      generateChunk(cx + dx, cz + dz);
+    }
+  }
+}
+
+function leaveLobby() {
+  if (!inLobby) return;
+  inLobby = false;
+  // Tear lobby, start infinite at service door
+  clearWorld();
+  scene.background = new THREE.Color(0x0c0e14);
+  scene.fog = new THREE.Fog(0x0c0e14, 6, 28);
+  scene.add(new THREE.AmbientLight(0x3a4050, 0.55));
+  const l = new THREE.PointLight(0x6688aa, 0.7, 20);
+  l.position.set(0, 4, 0); scene.add(l);
+
+  camera.position.set(5, PLAYER_H, -10);
+  generatedChunks.clear();
+  ensureChunksAround(camera.position.x, camera.position.z);
+  goalPos.set(0, 0, camera.position.z - 40);
+  updateHud();
+  showPrompt('You left the lobby. Do not be seen.', 3500);
+}
+
+function updateHud() {
+  if (inLobby) {
+    $('hud-zone').textContent = 'LOBBY // SAFE';
+    $('hud-zone').className = 'ok';
+    $('hud-goal').textContent = 'Goal: SERVICE door (back right)';
+    $('hud-depth').textContent = '';
+  } else {
+    $('hud-zone').textContent = 'RESIDUE // UNSAFE';
+    $('hud-zone').className = 'warn';
+    $('hud-goal').textContent = 'Goal shifts deeper. Keep moving.';
+    $('hud-depth').textContent = 'Depth ' + Math.floor(depth);
+  }
+}
+
+function showPrompt(t, ms) {
+  $('prompt').textContent = t;
+  $('prompt').style.display = 'block';
+  setTimeout(() => { $('prompt').style.display = 'none'; }, ms || 2500);
+}
+
+function isHidden() {
+  if (!crouching) return false;
+  // Near a cover prop?
+  for (const c of coverProps) {
+    if (!c.mesh) continue;
+    const d = camera.position.distanceTo(c.mesh.position);
+    if (d < c.r + 1.1) return true;
+  }
+  return false;
+}
+
+function updateMonsters(delta) {
+  if (inLobby || gameOver) return;
+  let anyChase = false;
+  const hidden = isHidden();
+
+  monsters.forEach(m => {
+    const dx = camera.position.x - m.mesh.position.x;
+    const dz = camera.position.z - m.mesh.position.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+
+    // Line of sight: facing player roughly
+    const faceX = Math.sin(m.angle);
+    const faceZ = Math.cos(m.angle);
+    const nx = dist > 0.01 ? dx/dist : 0;
+    const nz = dist > 0.01 ? dz/dist : 0;
+    const dot = faceX * nx + faceZ * nz;
+    const canSee = dist < m.sight && dot > 0.35 && !hidden;
+
+    if (canSee) {
+      m.state = 'chase';
+      anyChase = true;
+    } else if (m.state === 'chase' && dist > m.sight * 1.3) {
+      m.state = 'search';
+      m.patrolT = 3;
+    }
+
+    if (m.state === 'chase') {
+      m.angle = Math.atan2(dx, dz);
+      const sp = m.speed * 1.35 * delta;
+      m.mesh.position.x += nx * sp;
+      m.mesh.position.z += nz * sp;
+      if (dist < 1.3 && !hidden) {
+        triggerDetected();
+      }
+    } else if (m.state === 'search') {
+      m.patrolT -= delta;
+      m.angle += delta * 1.5;
+      if (m.patrolT <= 0) m.state = 'patrol';
+    } else {
+      // patrol
+      m.patrolT += delta;
+      m.angle += Math.sin(m.patrolT * 0.7) * 0.4 * delta;
+      m.mesh.position.x += Math.sin(m.angle) * m.speed * 0.45 * delta;
+      m.mesh.position.z += Math.cos(m.angle) * m.speed * 0.45 * delta;
+    }
+
+    m.mesh.rotation.y = m.angle;
+    if (m.light) {
+      m.light.position.copy(m.mesh.position);
+      m.light.position.y = 1.5;
+      m.light.intensity = m.state === 'chase' ? 1.1 : 0.45;
+    }
+  });
+
+  $('spotted').classList.toggle('on', anyChase);
+}
+
+function triggerDetected() {
+  if (gameOver) return;
+  gameOver = true;
+  document.exitPointerLock?.();
+  $('gameover').classList.add('visible');
+}
+
+function setupInput() {
+  document.addEventListener('keydown', e => {
+    if (e.code==='KeyW') keys.w=true;
+    if (e.code==='KeyA') keys.a=true;
+    if (e.code==='KeyS') keys.s=true;
+    if (e.code==='KeyD') keys.d=true;
+    if (e.code==='KeyC' || e.code==='ControlLeft') crouching = true;
+    if (e.code==='KeyE') tryInteract();
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code==='KeyW') keys.w=false;
+    if (e.code==='KeyA') keys.a=false;
+    if (e.code==='KeyS') keys.s=false;
+    if (e.code==='KeyD') keys.d=false;
+    if (e.code==='KeyC' || e.code==='ControlLeft') crouching = false;
+  });
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = document.pointerLockElement === renderer?.domElement;
+  });
+  document.addEventListener('mousemove', e => {
+    if (!pointerLocked || gameOver) return;
+    euler.setFromQuaternion(camera.quaternion);
+    euler.y -= (e.movementX||0) * 0.002;
+    euler.x -= (e.movementY||0) * 0.002;
+    euler.x = Math.max(-1.2, Math.min(1.2, euler.x));
+    camera.quaternion.setFromEuler(euler);
+  });
+  document.addEventListener('click', () => {
+    if (!isTouch && !gameOver && renderer) renderer.domElement.requestPointerLock?.();
+  });
+}
+
+function tryInteract() {
+  if (inLobby && exitDoor && camera.position.distanceTo(exitDoor.position) < 3.2) {
+    leaveLobby();
+  }
+}
+
+function setupMobile() {
+  const zone = $('joy'), stick = $('stick');
+  function handle(e) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const r = zone.getBoundingClientRect();
+    let dx = t.clientX - (r.left + r.width/2);
+    let dy = t.clientY - (r.top + r.height/2);
+    const max = 36, len = Math.sqrt(dx*dx+dy*dy);
+    if (len > max) { dx = dx/len*max; dy = dy/len*max; }
+    stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    mobile.moveX = dx/max; mobile.moveY = dy/max;
+  }
+  function end() {
+    stick.style.transform = 'translate(-50%,-50%)';
+    mobile.moveX = 0; mobile.moveY = 0;
+  }
+  zone.addEventListener('touchstart', handle, {passive:false});
+  zone.addEventListener('touchmove', handle, {passive:false});
+  zone.addEventListener('touchend', end);
+  $('crouch-btn').addEventListener('touchstart', e => {
+    e.preventDefault(); crouching = true; $('crouch-btn').classList.add('active');
+  }, {passive:false});
+  $('crouch-btn').addEventListener('touchend', () => {
+    crouching = false; $('crouch-btn').classList.remove('active');
+  });
+  // Tap near door to interact
+  document.addEventListener('touchend', e => {
+    if (inLobby) tryInteract();
+  });
+
+  document.addEventListener('touchstart', e => {
+    for (const t of e.changedTouches) {
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el && (el.closest('#joy') || el.closest('#crouch-btn'))) continue;
+      if (touchLookId === null) {
+        touchLookId = t.identifier;
+        touchLookLast = { x: t.clientX, y: t.clientY };
+      }
+    }
+  }, {passive:true});
+  document.addEventListener('touchmove', e => {
+    if (touchLookId === null) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier !== touchLookId) continue;
+      mobile.lookDX += t.clientX - touchLookLast.x;
+      mobile.lookDY += t.clientY - touchLookLast.y;
+      touchLookLast = { x: t.clientX, y: t.clientY };
+    }
+  }, {passive:true});
+  document.addEventListener('touchend', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchLookId) { touchLookId = null; touchLookLast = null; }
+    }
+  });
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!camera || gameOver) {
+    if (renderer && scene && camera) renderer.render(scene, camera);
+    return;
+  }
+  const delta = Math.min(clock.getDelta(), 0.05);
+
+  if (isTouch && (mobile.lookDX || mobile.lookDY)) {
+    euler.setFromQuaternion(camera.quaternion);
+    euler.y -= mobile.lookDX * 0.0045;
+    euler.x -= mobile.lookDY * 0.0045;
+    euler.x = Math.max(-1.2, Math.min(1.2, euler.x));
+    camera.quaternion.setFromEuler(euler);
+    mobile.lookDX = 0; mobile.lookDY = 0;
+  }
+
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+  const speed = (crouching ? CROUCH_MOVE : MOVE) * delta;
+  let mx = 0, mz = 0;
+  if (!isTouch && pointerLocked) {
+    if (keys.w) { mx += forward.x; mz += forward.z; }
+    if (keys.s) { mx -= forward.x; mz -= forward.z; }
+    if (keys.a) { mx -= right.x; mz -= right.z; }
+    if (keys.d) { mx += right.x; mz += right.z; }
+  } else if (isTouch) {
+    mx = forward.x * (-mobile.moveY) + right.x * mobile.moveX;
+    mz = forward.z * (-mobile.moveY) + right.z * mobile.moveX;
+  }
+  const len = Math.sqrt(mx*mx + mz*mz);
+  if (len > 0.01) {
+    camera.position.x += (mx/len) * speed;
+    camera.position.z += (mz/len) * speed;
+  }
+  camera.position.y = crouching ? CROUCH_H : PLAYER_H;
+
+  if (inLobby) {
+    camera.position.x = Math.max(-10.5, Math.min(10.5, camera.position.x));
+    camera.position.z = Math.max(-7.2, Math.min(8, camera.position.z));
+    // Prompt for exit
+    if (exitDoor && camera.position.distanceTo(exitDoor.position) < 3.2) {
+      $('prompt').textContent = isTouch ? 'TAP  Enter service corridor' : 'E  Enter service corridor';
+      $('prompt').style.display = 'block';
+    } else if ($('prompt').textContent.includes('service')) {
+      $('prompt').style.display = 'none';
+    }
+  } else {
+    ensureChunksAround(camera.position.x, camera.position.z);
+    // Update depth / endless goal
+    const d = Math.max(0, Math.floor((-camera.position.z - 10) / CELL));
+    if (d > depth) {
+      depth = d;
+      updateHud();
+      // soft goal ping
+      if (depth % 3 === 0) showPrompt('Deeper. The goal moved again.', 2000);
+    }
+    updateMonsters(delta);
+  }
+
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

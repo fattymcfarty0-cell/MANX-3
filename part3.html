@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0808">
+<title>MANX — FINAL // YOU ARE JORDAN</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050508;overflow:hidden;font-family:'Share Tech Mono',monospace;color:#c0b8b0;height:100vh;width:100vw;position:fixed}
+#boot{position:fixed;inset:0;z-index:40;background:#050508;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:28px;transition:opacity .9s}
+#boot.fade{opacity:0;pointer-events:none}
+#boot.hidden{display:none}
+#boot h1{color:#7a8cff;font-size:15px;letter-spacing:3px;margin-bottom:12px}
+#boot p{color:#5a6a80;font-size:13px;line-height:1.7;max-width:340px}
+#boot button{margin-top:26px;background:#1a1520;border:1px solid #4a3a5a;color:#c0a0c0;padding:14px 24px;font-family:inherit;font-size:13px;cursor:pointer}
+#canvas-wrap{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:12px;left:12px;z-index:10;font-size:11px;color:#5a6a80;line-height:1.55;pointer-events:none}
+#hud .you{color:#c0a070}
+#prompt{position:fixed;bottom:16%;left:50%;transform:translateX(-50%);background:rgba(10,8,12,.92);border:1px solid #3a3040;padding:10px 16px;font-size:13px;color:#c0a8b0;z-index:10;display:none;pointer-events:none;text-align:center;max-width:90%}
+#subtitle{position:fixed;bottom:22%;left:50%;transform:translateX(-50%);background:rgba(8,6,10,.85);padding:8px 14px;font-size:12px;color:#a090a0;z-index:10;display:none;pointer-events:none;text-align:center;max-width:88%;line-height:1.5}
+#crosshair{position:fixed;top:50%;left:50%;width:5px;height:5px;margin:-2px 0 0 -2px;border:1px solid rgba(180,160,180,.35);border-radius:50%;z-index:10;pointer-events:none;display:none}
+#vignette{position:fixed;inset:0;z-index:8;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,.55) 100%);opacity:.5;transition:opacity 2s}
+#vignette.heavy{opacity:.85}
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:25;transition:opacity 1s}
+#fade.on{opacity:1}
+#ending{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;justify-content:center;align-items:center;background:#050508;text-align:center;padding:28px}
+#ending.visible{display:flex}
+#ending h2{font-size:18px;letter-spacing:3px;margin-bottom:12px}
+#ending.good h2{color:#4aff9a}
+#ending.bad h2{color:#ff4a6a}
+#ending p{color:#6a7080;font-size:13px;line-height:1.7;max-width:360px;white-space:pre-line}
+#mobile{position:fixed;inset:0;pointer-events:none;z-index:15;display:none}
+#mobile.visible{display:block}
+.joy{position:absolute;bottom:24px;left:16px;width:110px;height:110px;pointer-events:auto;touch-action:none}
+.joy-base{width:96px;height:96px;border-radius:50%;background:rgba(20,15,25,.55);border:2px solid rgba(120,100,140,.35);position:absolute;top:7px;left:7px}
+.joy-stick{width:42px;height:42px;border-radius:50%;background:rgba(120,90,160,.5);border:2px solid rgba(180,140,200,.55);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+#act-btn{position:absolute;bottom:36px;right:20px;width:70px;height:70px;border-radius:50%;background:rgba(30,20,40,.75);border:2px solid #6a4aff;color:#c0a0ff;font-family:inherit;font-size:12px;pointer-events:auto;display:none;align-items:center;justify-content:center}
+#act-btn.visible{display:flex}
+</style>
+</head>
+<body>
+<div id="boot">
+<h1>MANX — FINAL</h1>
+<p>You are <b style="color:#c0a070">JORDAN</b>.<br><br>
+Your friend dared you to sleep on Floor 7.<br>
+You said no. They made you stay anyway.<br><br>
+Try to rest. Try to leave.</p>
+<button id="start-btn" type="button" onclick="window.__manxStart&&window.__manxStart()">WAKE IN THE ATTIC</button>
+</div>
+<div id="canvas-wrap"></div>
+<div id="crosshair"></div>
+<div id="vignette"></div>
+<div id="fade"></div>
+<div id="hud"><span class="you">JORDAN</span> // FLOOR 7 ATTIC<br><span id="hud-time">02:14</span> — <span id="hud-status">YOU SHOULD NOT BE HERE</span></div>
+<div id="prompt"></div>
+<div id="subtitle"></div>
+<div id="ending"><h2 id="end-title"></h2><p id="end-body"></p></div>
+<div id="mobile">
+<div class="joy" id="joy"><div class="joy-base"><div class="joy-stick" id="stick"></div></div></div>
+<button id="act-btn">E</button>
+</div>
+<script>
+const isTouch=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
+const $=id=>document.getElementById(id);
+let scene,camera,renderer,root,pointerLocked=false,gameStarted=false,gameOver=false;
+let interactTarget=null,phase=0,eventTime=0,hour=2,minute=14;
+let friendMesh,hatchMesh,noteMesh,pcMesh,elevMesh,shadowMesh;
+let lyingDown=true,canStand=false;
+let keys={w:0,a:0,s:0,d:0},clock,euler;
+const PI_2=Math.PI/2;
+const mobile={moveX:0,moveY:0,lookDX:0,lookDY:0};
+let touchLookId=null,touchLookLast=null;
+const bounds={minX:-5.8,maxX:5.8,minZ:-5.0,maxZ:5.0};
+
+function loadThree(cb){
+  if(window.THREE){cb();return}
+  const urls=['https://unpkg.com/three@0.160.0/build/three.min.js','https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js','https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js'];
+  let i=0;
+  function next(){
+    if(i>=urls.length){alert('Could not load 3D engine.');return}
+    const s=document.createElement('script');s.src=urls[i++];s.onload=cb;s.onerror=next;document.head.appendChild(s);
+  }
+  next();
+}
+function start(){
+  const btn=$('start-btn');if(btn){btn.disabled=true;btn.textContent='LOADING…'}
+  loadThree(()=>{
+    clock=new THREE.Clock();euler=new THREE.Euler(0,0,0,'YXZ');
+    $('boot').classList.add('fade');
+    setTimeout(()=>{
+      $('boot').classList.add('hidden');init();gameStarted=true;
+      if(!isTouch){$('crosshair').style.display='block';setTimeout(()=>renderer.domElement.requestPointerLock?.(),200)}
+      else $('mobile').classList.add('visible');
+      sub('Your friend is already in their bag. "Stop shaking," they say.');
+      setTimeout(()=>{sub('You are Jordan. You do not want to be here.');
+        setTimeout(()=>{canStand=true;prompt(isTouch?'TAP E  Sit up':'E  Sit up')},2500)},3000);
+    },500);
+  });
+}
+$('start-btn').addEventListener('click',start);
+$('start-btn').addEventListener('touchend',e=>{e.preventDefault();start()},{passive:false});
+
+function box(w,h,d,color,x,y,z,parent){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.9}));
+  m.position.set(x,y,z);(parent||root).add(m);return m;
+}
+function init(){
+  scene=new THREE.Scene();scene.background=new THREE.Color(0x120e0c);scene.fog=new THREE.Fog(0x120e0c,4,14);
+  camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,40);
+  camera.position.set(0,.35,1.5);euler.set(-.4,0,0);camera.quaternion.setFromEuler(euler);
+  renderer=new THREE.WebGLRenderer({antialias:false});renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));$('canvas-wrap').appendChild(renderer.domElement);
+  scene.add(new THREE.AmbientLight(0x3a3028,.45));
+  const l=new THREE.PointLight(0xffaa66,.7,12);l.position.set(0,2.5,0);scene.add(l);
+  root=new THREE.Group();scene.add(root);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(14,12),new THREE.MeshStandardMaterial({color:0x2a2218,roughness:.95}));
+  floor.rotation.x=-Math.PI/2;root.add(floor);
+  const ceil=new THREE.Mesh(new THREE.PlaneGeometry(14,12),new THREE.MeshStandardMaterial({color:0x1a140e}));
+  ceil.rotation.x=Math.PI/2;ceil.position.y=3.2;root.add(ceil);
+  box(14,3.2,.3,0x2a2018,0,1.6,-6);box(14,3.2,.3,0x2a2018,0,1.6,6);
+  box(.3,3.2,12,0x2a2018,-7,1.6,0);box(.3,3.2,12,0x2a2018,7,1.6,0);
+  box(1.2,1,1,0x3a3020,-4,.5,-3);box(.9,.7,.9,0x4a3828,-4.2,1.35,-3);
+  box(1.4,.8,1.1,0x3a3020,3.5,.4,-2);box(1,1.2,.9,0x4a3828,4,.6,2);box(.8,.6,.8,0x3a3020,-2,.3,3);
+  pcMesh=box(.7,.5,.5,0x1a1810,-2,.85,-4.5);box(1.2,.08,.7,0x2a2218,-2,.55,-4.5);
+  noteMesh=box(.35,.02,.25,0xd8d0b0,1.5,.55,-3.5);box(.9,.5,.6,0x3a3020,1.5,.25,-3.5);
+  const tc=document.createElement('canvas');tc.width=512;tc.height=128;
+  const tctx=tc.getContext('2d');tctx.font='bold 48px Courier New,monospace';tctx.fillStyle='#8a2020';tctx.textAlign='center';
+  tctx.fillText("DON'T TRUST THEM",256,80);
+  const wt=new THREE.Mesh(new THREE.PlaneGeometry(5,1.25),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(tc),transparent:true}));
+  wt.position.set(0,2.1,-5.85);root.add(wt);
+  hatchMesh=box(1.4,.1,1.4,0x1a1510,2.5,3.15,2.5);
+  elevMesh=box(2.2,3,.2,0x2a2830,-5,1.5,5.7);box(.9,2.6,.08,0x3a3840,-5.45,1.4,5.8);box(.9,2.6,.08,0x3a3840,-4.55,1.4,5.8);
+  friendMesh=box(1.8,.35,.7,0x1a2840,1.2,.2,1.2);box(.35,.25,.35,0x3a3028,.5,.35,1.2);
+  box(1.6,.3,.65,0x2a2030,0,.15,1.5);
+  shadowMesh=box(.55,1.7,.35,0x050508,-3.5,.85,-1);shadowMesh.visible=false;
+  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+  document.addEventListener('keydown',e=>{
+    if(!gameStarted||gameOver)return;
+    if(e.code==='KeyW')keys.w=1;if(e.code==='KeyA')keys.a=1;if(e.code==='KeyS')keys.s=1;if(e.code==='KeyD')keys.d=1;
+    if(e.code==='KeyE')tryAct();
+  });
+  document.addEventListener('keyup',e=>{
+    if(e.code==='KeyW')keys.w=0;if(e.code==='KeyA')keys.a=0;if(e.code==='KeyS')keys.s=0;if(e.code==='KeyD')keys.d=0;
+  });
+  document.addEventListener('pointerlockchange',()=>{pointerLocked=document.pointerLockElement===renderer?.domElement});
+  document.addEventListener('mousemove',e=>{
+    if(!pointerLocked||gameOver||lyingDown)return;
+    euler.setFromQuaternion(camera.quaternion);
+    euler.y-=(e.movementX||0)*.002;euler.x-=(e.movementY||0)*.002;
+    euler.x=Math.max(-1.2,Math.min(1.2,euler.x));camera.quaternion.setFromEuler(euler);
+  });
+  document.addEventListener('click',()=>{if(gameStarted&&!isTouch&&!gameOver)renderer?.domElement.requestPointerLock?.()});
+  if(isTouch)setupMobile();
+  animate();
+}
+function prompt(t){$('prompt').textContent=t;$('prompt').style.display=t?'block':'none'}
+function sub(t,ms){$('subtitle').textContent=t;$('subtitle').style.display='block';setTimeout(()=>{$('subtitle').style.display='none'},ms||3500)}
+function setTime(){minute+=1;if(minute>=60){hour++;minute=0}$('hud-time').textContent=String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0')}
+function tryAct(){
+  if(gameOver)return;
+  if(lyingDown&&canStand){
+    lyingDown=false;camera.position.y=1.55;euler.set(0,0,0);camera.quaternion.setFromEuler(euler);
+    prompt('');sub('You sit up. Your friend does not move.');phase=1;eventTime=0;$('hud-status').textContent='LOOK AROUND';return;
+  }
+  if(!interactTarget)return;
+  if(interactTarget==='friend'){sub("Go back to sleep, Jordan. Their eyes are closed. Breathing is wrong.");phase=Math.max(phase,2)}
+  else if(interactTarget==='note')sub("Note: They moved me to Peripheral. Do not trust them. - K.M.");
+  else if(interactTarget==='pc'){sub('Dead terminal. Then one green line flashes: STAY.');flashGlitch()}
+  else if(interactTarget==='hatch')sub('Hatch is sealed from above. Something scrapes on the other side.');
+  else if(interactTarget==='elevator')endGame('run');
+  else if(interactTarget==='shadow'){sub('There is no one there when you reach it.');shadowMesh.visible=false}
+}
+function flashGlitch(){
+  $('vignette').classList.add('heavy');scene.fog.near=2;
+  setTimeout(()=>{$('vignette').classList.remove('heavy');scene.fog.near=4},1200);
+}
+function endGame(kind){
+  if(gameOver)return;gameOver=true;document.exitPointerLock?.();$('fade').classList.add('on');
+  setTimeout(()=>{
+    $('ending').classList.add('visible');
+    if(kind==='run'){
+      $('ending').classList.add('good');$('end-title').textContent='YOU GOT OUT';
+      $('end-body').textContent='You are Jordan.\nYou left Floor 7 without your friend.\n\nIn the morning they say you overreacted.\nTheir badge still works.\nYours was never issued.\n\nSometimes the phone shows:\nhappy to help!';
+    } else {
+      $('ending').classList.add('bad');$('end-title').textContent='YOU STAYED';
+      $('end-body').textContent='You are Jordan.\nFloor 7 kept you.\n\nYour friend walked out at dawn alone.\nPeripheral Coordination filed the rest.\n\nMANX CO, LTD\nthe one that never left';
+    }
+  },1100);
+}
+function runEvents(delta){
+  if(lyingDown||gameOver)return;eventTime+=delta;
+
+  // --- Paranormal buildup (before main shadow) ---
+  if(phase>=1&&eventTime>5&&phase<1.5){
+    phase=1.5;setTime();
+    sub('Your breath fogs. The attic was not this cold a minute ago.');
+    $('vignette').classList.add('heavy');
+    setTimeout(()=>$('vignette').classList.remove('heavy'),2000);
+  }
+  if(eventTime>10&&phase<1.7){
+    phase=1.7;setTime();
+    sub('A cardboard box slides three inches by itself.');
+    // nudge a box if present
+    root.children.forEach(c=>{
+      if(c.geometry&&c.geometry.type==='BoxGeometry'&&c.position.y>0.3&&c.position.y<1.2&&Math.random()>0.7){
+        c.position.x+=0.15;
+      }
+    });
+  }
+  if(eventTime>14&&phase<2){
+    phase=2;setTime();
+    sub('A scrape above the hatch. Your friend does not wake.');
+    flashGlitch();
+  }
+  if(eventTime>18&&phase<2.2){
+    phase=2.2;setTime();
+    sub('Phone battery: 12%. You did not open anything.');
+    $('hud-status').textContent='BATTERY DRAINING';
+  }
+  if(eventTime>22&&phase<2.4){
+    phase=2.4;setTime();
+    sub('The wall text is different. You could swear it was only one line.');
+    // rewrite wall via simple flash
+    flashGlitch();
+    $('hud-status').textContent="DON'T TRUST THEM";
+  }
+  if(eventTime>26&&phase<2.6){
+    phase=2.6;setTime();
+    sub('Whisper, inches from your ear: "Peripheral Coordination."');
+    scene.fog.near=3;
+  }
+  if(eventTime>30&&phase<2.8){
+    phase=2.8;setTime();
+    sub('The dead computer clicks twice. No power cord.');
+    flashGlitch();
+  }
+  if(eventTime>34&&phase<2.9){
+    phase=2.9;setTime();
+    sub("Your friend's sleeping bag is still full. You can hear breathing. It does not match their chest.");
+  }
+
+  // --- Main presence ---
+  if(eventTime>38&&phase<3){
+    phase=3;setTime();
+    shadowMesh.visible=true;
+    sub('Something stands by the boxes.');
+    $('hud-status').textContent='YOU ARE NOT ALONE';
+    flashGlitch();
+  }
+  if(eventTime>48&&phase<4){
+    phase=4;setTime();
+    if(friendMesh)friendMesh.position.y=-0.5;
+    sub("Jordan. That was not your friend's voice.");
+    scene.background=new THREE.Color(0x0a0608);
+  }
+  if(eventTime>58&&phase<5){
+    phase=5;setTime();
+    $('hud-status').textContent='LEAVE — ELEVATOR';
+    sub('The elevator is the only light that still makes sense.');
+    setTimeout(()=>{if(!gameOver&&phase>=5)endGame('taken')},22000);
+  }
+  if(eventTime>70&&phase<6){
+    phase=6;
+    shadowMesh.position.set(camera.position.x-1,0.85,camera.position.z-1.5);
+    shadowMesh.visible=true;
+    flashGlitch();
+    sub('It is closer.');
+  }
+}
+function setupMobile(){
+  const zone=$('joy'),stick=$('stick');
+  function handle(e){e.preventDefault();const t=e.changedTouches[0],r=zone.getBoundingClientRect();
+    let dx=t.clientX-(r.left+r.width/2),dy=t.clientY-(r.top+r.height/2);const max=36,len=Math.sqrt(dx*dx+dy*dy);
+    if(len>max){dx=dx/len*max;dy=dy/len*max}stick.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;mobile.moveX=dx/max;mobile.moveY=dy/max}
+  function end(){stick.style.transform='translate(-50%,-50%)';mobile.moveX=0;mobile.moveY=0}
+  zone.addEventListener('touchstart',handle,{passive:false});zone.addEventListener('touchmove',handle,{passive:false});zone.addEventListener('touchend',end);
+  $('act-btn').addEventListener('touchstart',e=>{e.preventDefault();tryAct()},{passive:false});
+  document.addEventListener('touchstart',e=>{for(const t of e.changedTouches){const el=document.elementFromPoint(t.clientX,t.clientY);if(el&&(el.closest('#joy')||el.closest('#act-btn')))continue;if(touchLookId===null){touchLookId=t.identifier;touchLookLast={x:t.clientX,y:t.clientY}}}},{passive:true});
+  document.addEventListener('touchmove',e=>{if(touchLookId===null||lyingDown)return;for(const t of e.changedTouches){if(t.identifier!==touchLookId)continue;mobile.lookDX+=t.clientX-touchLookLast.x;mobile.lookDY+=t.clientY-touchLookLast.y;touchLookLast={x:t.clientX,y:t.clientY}}},{passive:true});
+  document.addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===touchLookId){touchLookId=null;touchLookLast=null}}});
+}
+function animate(){
+  requestAnimationFrame(animate);
+  if(!gameStarted||!camera)return;
+  if(gameOver){renderer.render(scene,camera);return}
+  const delta=Math.min(clock.getDelta(),.05);
+  if(!lyingDown&&isTouch&&(mobile.lookDX||mobile.lookDY)){
+    euler.setFromQuaternion(camera.quaternion);euler.y-=mobile.lookDX*.0045;euler.x-=mobile.lookDY*.0045;
+    euler.x=Math.max(-1.2,Math.min(1.2,euler.x));camera.quaternion.setFromEuler(euler);mobile.lookDX=0;mobile.lookDY=0;
+  }
+  if(!lyingDown){
+    const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();
+    const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();
+    const speed=4.2*delta;let mx=0,mz=0;
+    if(!isTouch&&pointerLocked){if(keys.w){mx+=forward.x;mz+=forward.z}if(keys.s){mx-=forward.x;mz-=forward.z}if(keys.a){mx-=right.x;mz-=right.z}if(keys.d){mx+=right.x;mz+=right.z}}
+    else if(isTouch){mx=forward.x*(-mobile.moveY)+right.x*mobile.moveX;mz=forward.z*(-mobile.moveY)+right.z*mobile.moveX}
+    const len=Math.sqrt(mx*mx+mz*mz);if(len>.01){camera.position.x+=(mx/len)*speed;camera.position.z+=(mz/len)*speed}
+    camera.position.y=1.55;
+    camera.position.x=Math.max(bounds.minX,Math.min(bounds.maxX,camera.position.x));
+    camera.position.z=Math.max(bounds.minZ,Math.min(bounds.maxZ,camera.position.z));
+  }
+  runEvents(delta);
+  interactTarget=null;let p='';
+  const dist=m=>m?camera.position.distanceTo(m.position):999;
+  if(lyingDown&&canStand)p=isTouch?'TAP E  Sit up':'E  Sit up';
+  else if(!lyingDown){
+    if(friendMesh&&dist(friendMesh)<2.4){interactTarget='friend';p=isTouch?'TAP E  Check friend':'E  Check friend'}
+    else if(noteMesh&&dist(noteMesh)<2.2){interactTarget='note';p=isTouch?'TAP E  Read note':'E  Read note'}
+    else if(pcMesh&&dist(pcMesh)<2.3){interactTarget='pc';p=isTouch?'TAP E  Computer':'E  Inspect computer'}
+    else if(hatchMesh&&dist(hatchMesh)<3){interactTarget='hatch';p=isTouch?'TAP E  Hatch':'E  Inspect hatch'}
+    else if(elevMesh&&dist(elevMesh)<3){interactTarget='elevator';p=isTouch?'TAP E  Elevator — leave':'E  Elevator — leave'}
+    else if(shadowMesh&&shadowMesh.visible&&dist(shadowMesh)<2.5){interactTarget='shadow';p=isTouch?'TAP E  Look':'E  Look'}
+  }
+  if(p)prompt(p);else if(!lyingDown)prompt('');
+  if(isTouch)$('act-btn').classList.toggle('visible',!!((lyingDown&&canStand)||interactTarget));
+  if(phase>=6&&shadowMesh.visible&&!gameOver){
+    const dx=camera.position.x-shadowMesh.position.x,dz=camera.position.z-shadowMesh.position.z,d=Math.sqrt(dx*dx+dz*dz);
+    if(d>.8){shadowMesh.position.x+=(dx/d)*1.1*delta;shadowMesh.position.z+=(dz/d)*1.1*delta}
+    else endGame('taken');
+  }
+  renderer.render(scene,camera);
+}
+</script>
+</body>
+</html>

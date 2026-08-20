@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c10">
+<title>MANX — AFTER</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0c10;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    color: #c0c8d8;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #stage {
+    min-height: 100vh; display: flex; flex-direction: column;
+    max-width: 720px; margin: 0 auto; position: relative;
+  }
+  #stage.hidden { display: none; }
+  #room {
+    flex: 1; padding: 28px 22px 12px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(40,50,80,0.25), transparent 60%), #0c0e14;
+    border-bottom: 1px solid #1a2030; min-height: 42vh;
+    display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  #location {
+    position: absolute; top: 16px; left: 22px;
+    font-size: 11px; color: #4a5a70; letter-spacing: 1px;
+  }
+  #location span { color: #6a7a90; }
+  .speaker { font-size: 12px; letter-spacing: 2px; margin-bottom: 8px; opacity: 0.85; }
+  .speaker.you { color: #7a8cff; }
+  .speaker.det { color: #c0a070; }
+  .speaker.sys { color: #5a6a80; }
+  #dialogue-box {
+    background: #10131c; border: 1px solid #2a3040;
+    padding: 18px 20px; min-height: 110px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  #dialogue-text { font-size: 15px; line-height: 1.65; color: #d0d8e8; white-space: pre-wrap; }
+  #choices { padding: 16px 22px 28px; display: none; flex-direction: column; gap: 8px; }
+  #choices.visible { display: flex; }
+  .choice {
+    background: #151822; border: 1px solid #2a3040; color: #a0b0c8;
+    padding: 14px 16px; font-family: inherit; font-size: 14px; text-align: left; cursor: pointer;
+  }
+  .choice:hover { background: #1c2230; border-color: #4a5aff; color: #e0e8ff; }
+  #continue-hint {
+    text-align: center; font-size: 11px; color: #3a4a5a;
+    padding: 8px; letter-spacing: 1px; display: none;
+  }
+  #continue-hint.visible { display: block; }
+  #title-card {
+    position: fixed; inset: 0; z-index: 20; background: #050508;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 30px; transition: opacity 1.2s ease;
+  }
+  #title-card.fade { opacity: 0; pointer-events: none; }
+  #title-card.hidden { display: none; }
+  #title-card h1 { color: #7a8cff; font-size: 20px; letter-spacing: 4px; margin-bottom: 16px; }
+  #title-card p { color: #5a6a80; font-size: 13px; line-height: 1.7; max-width: 360px; }
+  #title-card .line { width: 40px; height: 1px; background: #3a4a6a; margin: 20px auto; }
+  #end-card {
+    position: fixed; inset: 0; z-index: 15; background: #050508;
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 30px;
+  }
+  #end-card.visible { display: flex; }
+  #end-card h2 { color: #8a9ab0; font-size: 16px; letter-spacing: 2px; margin-bottom: 12px; }
+  #end-card p { color: #5a6a80; font-size: 13px; line-height: 1.7; max-width: 380px; }
+
+  #world { display: none; position: fixed; inset: 0; z-index: 5; }
+  #world.active { display: block; }
+  #canvas-container { position: absolute; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud3d {
+    position: absolute; top: 14px; left: 14px; z-index: 10;
+    font-size: 12px; color: #5a6a80; line-height: 1.6; pointer-events: none;
+  }
+  #hud3d .item { color: #ffcc66; margin-top: 4px; }
+  #prompt3d {
+    position: absolute; bottom: 18%; left: 50%; transform: translateX(-50%);
+    background: rgba(10,12,20,0.9); border: 1px solid #3a4a6a;
+    padding: 10px 18px; font-size: 13px; color: #a0b8ff;
+    z-index: 10; display: none; pointer-events: none; max-width: 90%; text-align: center;
+  }
+  #crosshair3d {
+    position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
+    margin: -3px 0 0 -3px; border: 1px solid rgba(180,200,255,0.45);
+    border-radius: 50%; pointer-events: none; z-index: 10; display: none;
+  }
+  #fade3d {
+    position: absolute; inset: 0; background: #000; opacity: 0;
+    pointer-events: none; z-index: 30; transition: opacity 0.9s ease;
+  }
+  #fade3d.active { opacity: 1; }
+  #elevator-ui {
+    position: absolute; inset: 0; z-index: 25;
+    display: none; justify-content: center; align-items: center;
+    background: rgba(5,8,12,0.88);
+  }
+  #elevator-ui.visible { display: flex; }
+  #elevator-panel {
+    background: #0d0f18; border: 2px solid #2a3040;
+    padding: 24px 28px; min-width: 260px; text-align: center;
+  }
+  #elevator-panel h3 { color: #7a8cff; font-size: 14px; letter-spacing: 2px; margin-bottom: 16px; }
+  #elevator-panel button {
+    display: block; width: 100%; margin: 8px 0;
+    background: #151822; border: 1px solid #2a3040;
+    color: #a0b0c8; padding: 12px; font-family: inherit; font-size: 13px; cursor: pointer;
+  }
+  #elevator-panel button:hover { border-color: #4a5aff; color: #e0e8ff; }
+  #elevator-panel .note { color: #5a6a80; font-size: 11px; margin-top: 12px; }
+  #elevator-panel .close-el { margin-top: 14px; border-color: #3a3040; color: #807070; }
+  #mobile3d {
+    position: absolute; inset: 0; pointer-events: none; z-index: 15; display: none;
+  }
+  #mobile3d.visible { display: block; }
+  .joy-zone {
+    position: absolute; bottom: 28px; left: 20px; width: 120px; height: 120px;
+    pointer-events: auto; touch-action: none;
+  }
+  .joy-base {
+    width: 100px; height: 100px; border-radius: 50%;
+    background: rgba(20,25,40,0.55); border: 2px solid rgba(100,120,180,0.35);
+    position: absolute; top: 10px; left: 10px;
+  }
+  .joy-stick {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(90,120,220,0.55); border: 2px solid rgba(140,170,255,0.6);
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  }
+  #interact3d {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(30,40,70,0.75); border: 2px solid #4a5aff;
+    color: #a0b8ff; font-family: inherit; font-size: 18px;
+    pointer-events: auto; display: none; align-items: center; justify-content: center;
+  }
+  #interact3d.visible { display: flex; }
+</style>
+</head>
+<body>
+
+<div id="title-card">
+  <h1>MANX CO, LTD</h1>
+  <div class="line"></div>
+  <p>AFTER THE GOOD ENDING<br><br>You left with the key.<br>Someone noticed.</p>
+  <p style="margin-top:28px;color:#7a8cff;font-size:12px;letter-spacing:2px;cursor:pointer">TAP TO BEGIN</p>
+</div>
+
+<div id="stage">
+  <div id="location">WEST JORDAN // <span>INTERVIEW ROOM 3</span></div>
+  <div id="room">
+    <div id="dialogue-box">
+      <div class="speaker det" id="speaker">DET. HALE</div>
+      <div id="dialogue-text"></div>
+    </div>
+  </div>
+  <div id="continue-hint">TAP / CLICK TO CONTINUE</div>
+  <div id="choices"></div>
+</div>
+
+<div id="end-card">
+  <h2 id="end-title">END OF TEST CUTSCENE</h2>
+  <p id="end-body">The interview is not over.<br><br>Session suspended.</p>
+</div>
+
+<div id="world">
+  <div id="canvas-container"></div>
+  <div id="crosshair3d"></div>
+  <div id="hud3d">
+    <span id="hud-loc">MANX LOBBY // PUBLIC LEVEL</span><br>
+    <span id="hud-sub">DET. HALE IS WITH YOU</span>
+    <div class="item" id="hud-item"></div>
+  </div>
+  <div id="prompt3d"></div>
+  <div id="fade3d"></div>
+  <div id="elevator-ui">
+    <div id="elevator-panel">
+      <h3>ELEVATOR</h3>
+      <button data-floor="1">1 — Lobby</button>
+      <button data-floor="6">6 — Offices</button>
+      <button data-floor="7" id="btn-floor7">7 — Sublevel</button>
+      <div class="note" id="el-note">Staff key required for restricted floors</div>
+      <button class="close-el" id="close-elevator">Close</button>
+    </div>
+  </div>
+  <div id="mobile3d">
+    <div class="joy-zone" id="joy3d">
+      <div class="joy-base"><div class="joy-stick" id="stick3d"></div></div>
+    </div>
+    <button id="interact3d">E</button>
+  </div>
+</div>
+
+<script>
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+const $ = id => document.getElementById(id);
+
+function loadThree(cb) {
+  if (window.THREE) { cb(); return; }
+  const urls = [
+    'https://unpkg.com/three@0.160.0/build/three.min.js',
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js'
+  ];
+  let i = 0;
+  function tryNext() {
+    if (i >= urls.length) {
+      alert('Could not load 3D engine. Check your connection and try again.');
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = urls[i++];
+    s.onload = () => cb();
+    s.onerror = () => tryNext();
+    document.head.appendChild(s);
+  }
+  tryNext();
+}
+
+function dismissTitle() {
+  const tc = $('title-card');
+  if (!tc || tc.classList.contains('hidden')) return;
+  tc.classList.add('fade');
+  setTimeout(() => {
+    tc.classList.add('hidden');
+    playCurrent();
+  }, 500);
+}
+
+const textEl = $('dialogue-text');
+const speakerEl = $('speaker');
+const choicesEl = $('choices');
+const hintEl = $('continue-hint');
+
+let typing = false, waitingContinue = false, sceneIndex = 0, typeTimer = null;
+let goToBuilding = false, impatientEnding = false;
+
+const script = [
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Interview starts at 21:14. Subject declined counsel.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'State your name for the record.' },
+  { type: 'choice', options: [
+    { label: 'Give the name on your badge', next: 'name_badge' },
+    { label: 'Stay quiet', next: 'name_quiet' }
+  ]},
+  { id: 'name_badge', type: 'line', speaker: 'YOU', cls: 'you', text: 'You give the name printed on the MANX employee badge still in your pocket.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Employed at MANX CO, LTD. Floor assignment… blank on our copy.' },
+  { type: 'goto', to: 'after_name' },
+  { id: 'name_quiet', type: 'line', speaker: 'YOU', cls: 'you', text: 'You say nothing. The recorder light stays red.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Fine. We already have the badge. MANX CO, LTD. No floor listed.' },
+  { id: 'after_name', type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'You were found three blocks from the facility at 03:40. Carrying a brass key tagged FACILITY EXIT.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Building security says that key was decommissioned in 1991.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'So. Walk me through your shift.' },
+  { type: 'choice', options: [
+    { label: 'I did my job. Then I left.', next: 'story_simple' },
+    { label: 'There was someone in the attic.', next: 'story_marsh' },
+    { label: 'Floor 7 isn\'t on the maps.', next: 'story_floor' }
+  ]},
+  { id: 'story_simple', type: 'line', speaker: 'YOU', cls: 'you', text: 'You keep it flat. Directives. Compliance. You left when the system said you could.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Systems don\'t usually hand out exit keys that don\'t exist.' },
+  { type: 'goto', to: 'pressure' },
+  { id: 'story_marsh', type: 'line', speaker: 'YOU', cls: 'you', text: 'You mention the attic. The note. The name: K. Marsh.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Marsh, K. Archive Maintenance. Marked reassigned to Peripheral Coordination. March 1991.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'There is no forwarding address. There is no second record.' },
+  { type: 'goto', to: 'pressure' },
+  { id: 'story_floor', type: 'line', speaker: 'YOU', cls: 'you', text: 'You tell him Floor 7 / Sublevel does not appear on public plans.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'We pulled facilities drawings this morning. They stop at six.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'MANX legal already called. They say you\'re confused. Exhausted. Mistaken.' },
+  { id: 'pressure', type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'A missing persons unit has twelve open files tied to that building since 1989. All closed as voluntary resignation.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'You\'re the first one who walked out carrying something that still opens a door.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Will you take us back in?' },
+  { type: 'choice', options: [
+    { label: 'Yes. I\'ll show you.', next: 'yes' },
+    { label: 'Not yet.', next: 'not_yet' },
+    { label: 'You won\'t like what\'s under Floor 7.', next: 'warn' }
+  ]},
+  { id: 'yes', type: 'line', speaker: 'YOU', cls: 'you', text: 'You nod. The key is still cold in the evidence bag between you.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Then we go now. Officially it\'s a welfare check.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'Stay close. And if that key still works — we document everything.' },
+  { type: 'line', speaker: 'SYSTEM', cls: 'sys', text: 'Morning. MANX lobby. The public face of the building is still smiling.' },
+  { type: 'enter3d' },
+  { id: 'not_yet', type: 'line', speaker: 'YOU', cls: 'you', text: 'You shake your head. Not tonight.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'We can hold the key. We can\'t hold you. Yet.' },
+  { type: 'goto', to: 'closing' },
+  { id: 'warn', type: 'line', speaker: 'YOU', cls: 'you', text: 'You tell him Floor 7 is where problems are moved.' },
+  { type: 'line', speaker: 'DET. HALE', cls: 'det', text: 'He writes that down. Call me when you\'re ready to walk us in.' },
+  { id: 'closing', type: 'line', speaker: 'SYSTEM', cls: 'sys', text: 'Interview paused. The key remains in custody.' },
+  { type: 'end' }
+];
+const byId = {};
+script.forEach((s, i) => { if (s.id) byId[s.id] = i; });
+
+function setSpeaker(name, cls) {
+  speakerEl.textContent = name;
+  speakerEl.className = 'speaker ' + (cls || 'det');
+}
+function typeText(text, cb) {
+  typing = true; textEl.textContent = '';
+  hintEl.classList.remove('visible');
+  choicesEl.classList.remove('visible'); choicesEl.innerHTML = '';
+  let i = 0; clearInterval(typeTimer);
+  typeTimer = setInterval(() => {
+    if (i >= text.length) { clearInterval(typeTimer); typing = false; if (cb) cb(); return; }
+    textEl.textContent += text[i++];
+  }, 18);
+}
+function showChoices(options) {
+  typing = false; waitingContinue = false; hintEl.classList.remove('visible');
+  choicesEl.innerHTML = '';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'choice'; btn.textContent = opt.label;
+    btn.onclick = () => {
+      choicesEl.classList.remove('visible');
+      if (opt.next === 'yes') goToBuilding = true;
+      if (opt.next === 'not_yet' || opt.next === 'warn') impatientEnding = true;
+      jumpTo(opt.next);
+    };
+    choicesEl.appendChild(btn);
+  });
+  choicesEl.classList.add('visible');
+}
+function jumpTo(id) { if (byId[id] !== undefined) { sceneIndex = byId[id]; playCurrent(); } }
+function showEndCard() {
+  if (impatientEnding) {
+    $('end-title').textContent = 'IMPATIENT ENDING';
+    $('end-body').innerHTML = 'You decided not to go inside and held it off.<br><br>The key stays with the department.<br>Floor 7 stays dark — for now.';
+  } else {
+    $('end-title').textContent = 'END OF TEST CUTSCENE';
+    $('end-body').innerHTML = 'The interview is not over.<br><br>Session suspended.';
+  }
+  $('end-card').classList.add('visible');
+}
+function playCurrent() {
+  if (sceneIndex >= script.length) { showEndCard(); return; }
+  const step = script[sceneIndex];
+  if (step.type === 'goto') { jumpTo(step.to); return; }
+  if (step.type === 'end') { showEndCard(); return; }
+  if (step.type === 'enter3d') { startLobby3D(); return; }
+  if (step.type === 'choice') { textEl.textContent = ''; setSpeaker('YOU','you'); showChoices(step.options); return; }
+  setSpeaker(step.speaker, step.cls);
+  typeText(step.text, () => { waitingContinue = true; hintEl.classList.add('visible'); });
+}
+function advance() {
+  if ($('world').classList.contains('active')) return;
+  if (typing) {
+    clearInterval(typeTimer); typing = false;
+    const step = script[sceneIndex];
+    if (step && step.type === 'line') {
+      textEl.textContent = step.text; waitingContinue = true; hintEl.classList.add('visible');
+    }
+    return;
+  }
+  if (!waitingContinue) return;
+  waitingContinue = false; hintEl.classList.remove('visible');
+  sceneIndex++; playCurrent();
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('.choice') || e.target.closest('#elevator-panel')) return;
+  advance();
+});
+document.addEventListener('keydown', e => {
+  if ($('world').classList.contains('active')) return;
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); advance(); }
+});
+// Title: auto or tap
+setTimeout(dismissTitle, 2200);
+$('title-card').addEventListener('click', dismissTitle);
+$('title-card').addEventListener('touchend', function(e){ e.preventDefault(); dismissTitle(); }, {passive:false});
+
+// ===================== 3D =====================
+let scene, camera, renderer, roomRoot;
+let worldReady = false, pointerLocked = false;
+let interactTarget = null;
+let elevMesh = null, deskMesh = null, hatchMesh = null, noteMesh = null, deadPCMesh = null, crowbarMesh = null;
+let area = 'lobby'; // lobby | attic | proc
+let hasCrowbar = false;
+let visitedAttic = false;
+let lobbyIsProcedural = false;
+let bounds = { minX:-11, maxX:11, minZ:-7.5, maxZ:9.6 };
+const keys3 = { w:false, a:false, s:false, d:false };
+let clock = null;
+let euler = null;
+const PI_2 = Math.PI / 2;
+const mobile = { moveX:0, moveY:0, lookDX:0, lookDY:0 };
+let touchLookId = null, touchLookLast = null;
+let promptLockUntil = 0;
+
+function showPrompt(t, ms) {
+  $('prompt3d').textContent = t;
+  $('prompt3d').style.display = 'block';
+  if (ms) {
+    promptLockUntil = performance.now() + ms;
+    setTimeout(() => {
+      if (performance.now() >= promptLockUntil - 50) $('prompt3d').style.display = 'none';
+    }, ms);
+  }
+}
+
+function startLobby3D() {
+  $('stage').classList.add('hidden');
+  $('world').classList.add('active');
+  $('fade3d').classList.add('active');
+  loadThree(() => {
+    clock = new THREE.Clock();
+    euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    initWorld();
+    buildNormalLobby();
+    setTimeout(() => {
+      $('fade3d').classList.remove('active');
+      if (!isTouch) {
+        $('crosshair3d').style.display = 'block';
+        setTimeout(() => renderer?.domElement.requestPointerLock?.(), 200);
+      } else $('mobile3d').classList.add('visible');
+    }, 700);
+  });
+}
+
+function makeBox(w,h,d,color,x,y,z, parent) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.85 })
+  );
+  m.position.set(x,y,z);
+  (parent || roomRoot).add(m);
+  return m;
+}
+
+function clearRoom() {
+  while (roomRoot.children.length) roomRoot.remove(roomRoot.children[0]);
+  elevMesh = deskMesh = hatchMesh = noteMesh = deadPCMesh = crowbarMesh = null;
+}
+
+function initWorld() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 80);
+  camera.position.set(0, 1.6, 8);
+  renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  $('canvas-container').appendChild(renderer.domElement);
+  roomRoot = new THREE.Group();
+  scene.add(roomRoot);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+  document.addEventListener('keydown', e => {
+    if (!$('world').classList.contains('active')) return;
+    if (e.code==='KeyW') keys3.w=true;
+    if (e.code==='KeyA') keys3.a=true;
+    if (e.code==='KeyS') keys3.s=true;
+    if (e.code==='KeyD') keys3.d=true;
+    if (e.code==='KeyE') tryInteract3D();
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code==='KeyW') keys3.w=false;
+    if (e.code==='KeyA') keys3.a=false;
+    if (e.code==='KeyS') keys3.s=false;
+    if (e.code==='KeyD') keys3.d=false;
+  });
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = document.pointerLockElement === renderer?.domElement;
+  });
+  document.addEventListener('mousemove', e => {
+    if (!pointerLocked) return;
+    euler.setFromQuaternion(camera.quaternion);
+    euler.y -= (e.movementX||0)*0.002;
+    euler.x -= (e.movementY||0)*0.002;
+    euler.x = Math.max(-PI_2+0.1, Math.min(PI_2-0.1, euler.x));
+    camera.quaternion.setFromEuler(euler);
+  });
+  document.addEventListener('click', () => {
+    if ($('world').classList.contains('active') && !isTouch && !$('elevator-ui').classList.contains('visible'))
+      renderer?.domElement.requestPointerLock?.();
+  });
+
+  $('close-elevator').onclick = () => {
+    $('elevator-ui').classList.remove('visible');
+    if (!isTouch) setTimeout(() => renderer?.domElement.requestPointerLock?.(), 100);
+  };
+  document.querySelectorAll('#elevator-panel button[data-floor]').forEach(btn => {
+    btn.onclick = () => onElevatorFloor(btn.getAttribute('data-floor'));
+  });
+
+  if (isTouch) setupMobile3D();
+  worldReady = true;
+  animateWorld();
+}
+
+function setLighting(ambient, fogCol, fogNear, fogFar, bg) {
+  // remove old lights
+  const toRemove = [];
+  scene.children.forEach(c => {
+    if (c.isLight && c !== roomRoot) toRemove.push(c);
+  });
+  // Keep it simple: strip all lights and re-add
+  scene.children.filter(c => c.isLight).forEach(l => scene.remove(l));
+  scene.add(new THREE.AmbientLight(ambient.color, ambient.int));
+  if (ambient.points) ambient.points.forEach(p => {
+    const l = new THREE.PointLight(p.c, p.i, p.d);
+    l.position.set(p.x, p.y, p.z); scene.add(l);
+  });
+  scene.background = new THREE.Color(bg);
+  scene.fog = new THREE.Fog(fogCol, fogNear, fogFar);
+}
+
+function buildNormalLobby() {
+  clearRoom();
+  area = 'lobby';
+  lobbyIsProcedural = false;
+  $('hud-loc').textContent = 'MANX LOBBY // PUBLIC LEVEL';
+  $('hud-sub').textContent = 'DET. HALE IS WITH YOU';
+  setLighting(
+    { color: 0x6a7a98, int: 1.0, points: [
+      { c:0xffffff, i:1.4, d:30, x:0, y:6, z:2 },
+      { c:0x6a8cff, i:0.6, d:20, x:-4, y:3, z:-2 }
+    ]},
+    0x1a1e28, 12, 40, 0x1a1e28
+  );
+
+  // Floor / ceiling
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(28, 22), new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.7 }));
+  floor.rotation.x = -Math.PI/2; roomRoot.add(floor);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(28, 22), new THREE.MeshStandardMaterial({ color: 0x222830 }));
+  ceil.rotation.x = Math.PI/2; ceil.position.y = 5; roomRoot.add(ceil);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x252a38, roughness: 0.9 });
+  makeBox(28, 5, 0.3, 0x252a38, 0, 2.5, -9, roomRoot);
+  makeBox(0.3, 5, 20, 0x252a38, -13, 2.5, 1, roomRoot);
+  makeBox(0.3, 5, 20, 0x252a38, 13, 2.5, 1, roomRoot);
+  // Front wall + doors
+  const frontZ = 10.5;
+  makeBox(10.5, 5, 0.35, 0x252a38, -8.25, 2.5, frontZ, roomRoot);
+  makeBox(10.5, 5, 0.35, 0x252a38, 8.25, 2.5, frontZ, roomRoot);
+  makeBox(3.2, 1.4, 0.35, 0x252a38, 0, 4.1, frontZ, roomRoot);
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a4558, metalness: 0.35, roughness: 0.45, transparent: true, opacity: 0.85 });
+  const doorL = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.4, 0.12), doorMat);
+  doorL.position.set(-0.75, 1.7, frontZ - 0.05); roomRoot.add(doorL);
+  const doorR = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.4, 0.12), doorMat);
+  doorR.position.set(0.75, 1.7, frontZ - 0.05); roomRoot.add(doorR);
+
+  // Logo
+  makeBox(4.5, 2.2, 0.12, 0x1a1e28, 0, 3.2, -8.85, roomRoot);
+  const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.08), new THREE.MeshBasicMaterial({ color: 0x3a5aff }));
+  s1.position.set(-1.2, 3.5, -8.75); s1.rotation.z = 0.3; roomRoot.add(s1);
+  const s2 = new THREE.Mesh(new THREE.CircleGeometry(0.35, 16), new THREE.MeshBasicMaterial({ color: 0xff3a9a }));
+  s2.position.set(-0.4, 3.55, -8.75); roomRoot.add(s2);
+  const s3 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.08), new THREE.MeshBasicMaterial({ color: 0xffcc33 }));
+  s3.position.set(0.4, 3.45, -8.75); s3.rotation.z = -0.25; roomRoot.add(s3);
+  const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#7a8cff'; ctx.font = 'bold 42px Courier New, monospace'; ctx.textAlign = 'center';
+  ctx.fillText('MANX CO, LTD', 256, 55);
+  ctx.fillStyle = '#8a9ab0'; ctx.font = '28px Courier New, monospace';
+  ctx.fillText('happy to help!', 256, 110);
+  const textPlane = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 1.2), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+  textPlane.position.set(0.3, 2.55, -8.72); roomRoot.add(textPlane);
+
+  deskMesh = makeBox(5, 1.1, 1.4, 0x2a3348, -5, 0.55, -6, roomRoot);
+  makeBox(5, 0.08, 1.5, 0x3a4558, -5, 1.14, -6, roomRoot);
+  elevMesh = makeBox(2.4, 3.2, 0.2, 0x3a4050, 6, 1.6, -8.7, roomRoot);
+  makeBox(1.0, 2.8, 0.08, 0x4a5568, 5.45, 1.5, -8.55, roomRoot);
+  makeBox(1.0, 2.8, 0.08, 0x4a5568, 6.55, 1.5, -8.55, roomRoot);
+  const el = new THREE.PointLight(0x88aaff, 0.7, 6); el.position.set(6, 2.5, -7.5); roomRoot.add(el);
+  makeBox(0.45, 1.5, 0.35, 0x3a4058, 1.2, 0.85, 7, roomRoot);
+  makeBox(0.35, 0.35, 0.35, 0x5a5048, 1.2, 1.8, 7, roomRoot);
+
+  bounds = { minX:-11.5, maxX:11.5, minZ:-7.5, maxZ:9.6 };
+  camera.position.set(0, 1.6, 8);
+}
+
+function buildAttic() {
+  clearRoom();
+  area = 'attic';
+  visitedAttic = true;
+  $('hud-loc').textContent = 'FLOOR 7 // SUBLEVEL — ATTIC';
+  $('hud-sub').textContent = 'THE AIR IS WRONG HERE';
+  setLighting(
+    { color: 0x4a3a30, int: 0.55, points: [
+      { c:0xffaa66, i:1.1, d:14, x:0, y:3, z:0 },
+      { c:0x886644, i:0.5, d:10, x:-3, y:2, z:-3 }
+    ]},
+    0x1a120c, 5, 16, 0x1a120c
+  );
+
+  // Attic room ~ similar to first game
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 12), new THREE.MeshStandardMaterial({ color: 0x2a2218, roughness: 0.95 }));
+  floor.rotation.x = -Math.PI/2; roomRoot.add(floor);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(14, 12), new THREE.MeshStandardMaterial({ color: 0x1a140e }));
+  ceil.rotation.x = Math.PI/2; ceil.position.y = 3.4; roomRoot.add(ceil);
+  makeBox(14, 3.4, 0.3, 0x2a2018, 0, 1.7, -6, roomRoot);
+  makeBox(14, 3.4, 0.3, 0x2a2018, 0, 1.7, 6, roomRoot);
+  makeBox(0.3, 3.4, 12, 0x2a2018, -7, 1.7, 0, roomRoot);
+  makeBox(0.3, 3.4, 12, 0x2a2018, 7, 1.7, 0, roomRoot);
+
+  // Boxes
+  makeBox(1.2, 1.0, 1.0, 0x3a3020, -4, 0.5, -3, roomRoot);
+  makeBox(0.9, 0.7, 0.9, 0x4a3828, -4.2, 1.35, -3, roomRoot);
+  makeBox(1.4, 0.8, 1.1, 0x3a3020, 3.5, 0.4, -2, roomRoot);
+  makeBox(1.0, 1.2, 0.9, 0x4a3828, 4, 0.6, 2, roomRoot);
+  makeBox(0.8, 0.6, 0.8, 0x3a3020, -2, 0.3, 3, roomRoot);
+
+  // Old dead computer
+  deadPCMesh = makeBox(0.7, 0.5, 0.5, 0x1a1810, -2, 0.85, -4.5, roomRoot);
+  makeBox(1.2, 0.08, 0.7, 0x2a2218, -2, 0.55, -4.5, roomRoot); // desk
+  makeBox(0.15, 0.5, 0.15, 0x1a1810, -2.4, 0.3, -4.3, roomRoot);
+  makeBox(0.15, 0.5, 0.15, 0x1a1810, -1.6, 0.3, -4.3, roomRoot);
+
+  // Blood-ish stain under desk
+  const stain = new THREE.Mesh(
+    new THREE.CircleGeometry(0.5, 10),
+    new THREE.MeshBasicMaterial({ color: 0x1a0808, transparent: true, opacity: 0.65 })
+  );
+  stain.rotation.x = -Math.PI/2; stain.position.set(-2, 0.02, -4.2); roomRoot.add(stain);
+
+  // Note
+  noteMesh = makeBox(0.35, 0.02, 0.25, 0xd8d0b0, 1.5, 0.55, -3.5, roomRoot);
+  makeBox(0.9, 0.5, 0.6, 0x3a3020, 1.5, 0.25, -3.5, roomRoot);
+
+  // DON'T TRUST THEM wall text
+  const tc = document.createElement('canvas');
+  tc.width = 512; tc.height = 128;
+  const tctx = tc.getContext('2d');
+  tctx.clearRect(0,0,512,128);
+  tctx.font = 'bold 48px Courier New, monospace';
+  tctx.fillStyle = '#aa2020';
+  tctx.textAlign = 'center';
+  tctx.fillText("DON'T TRUST THEM", 256, 80);
+  const tplane = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 1.25),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(tc), transparent: true })
+  );
+  tplane.position.set(0, 2.2, -5.85); roomRoot.add(tplane);
+
+  // Jammed hatch (ceiling)
+  hatchMesh = makeBox(1.4, 0.1, 1.4, 0x1a1510, 2.5, 3.35, 2.5, roomRoot);
+  makeBox(1.6, 0.08, 1.6, 0x2a2018, 2.5, 3.3, 2.5, roomRoot);
+
+  // Elevator door in attic (return)
+  elevMesh = makeBox(2.2, 3.0, 0.2, 0x2a2830, -5, 1.5, 5.7, roomRoot);
+  makeBox(0.9, 2.6, 0.08, 0x3a3840, -5.45, 1.4, 5.8, roomRoot);
+  makeBox(0.9, 2.6, 0.08, 0x3a3840, -4.55, 1.4, 5.8, roomRoot);
+
+  bounds = { minX:-6.2, maxX:6.2, minZ:-5.2, maxZ:5.2 };
+  camera.position.set(0, 1.6, 4);
+}
+
+function buildProceduralLobby() {
+  clearRoom();
+  area = 'proc';
+  lobbyIsProcedural = true;
+  $('hud-loc').textContent = 'LOBBY // LAYOUT ERROR';
+  $('hud-sub').textContent = 'THIS IS NOT THE LOBBY YOU LEFT';
+  setLighting(
+    { color: 0x3a4050, int: 0.7, points: [
+      { c:0x6688cc, i:1.0, d:25, x:0, y:5, z:0 },
+      { c:0xff6688, i:0.35, d:15, x:8, y:3, z:-4 }
+    ]},
+    0x10141c, 8, 32, 0x10141c
+  );
+
+  // Procedural grid of rooms
+  const cell = 8;
+  const cols = 3, rows = 3;
+  const wallH = 3.5;
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e2430, roughness: 0.9 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1e28, roughness: 0.85 });
+
+  // Random wall openings — ensure connectivity with simple maze-like removals
+  // Grid rooms centered around origin
+  const originX = -cell, originZ = -cell;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cx = originX + c * cell;
+      const cz = originZ + r * cell;
+      // Floor tile
+      const fl = new THREE.Mesh(new THREE.PlaneGeometry(cell-0.1, cell-0.1), floorMat);
+      fl.rotation.x = -Math.PI/2; fl.position.set(cx, 0, cz); roomRoot.add(fl);
+      // Ceiling
+      const cl = new THREE.Mesh(new THREE.PlaneGeometry(cell-0.1, cell-0.1), new THREE.MeshStandardMaterial({ color: 0x12151c }));
+      cl.rotation.x = Math.PI/2; cl.position.set(cx, wallH, cz); roomRoot.add(cl);
+
+      // Walls with random doorways (except outer shell more solid with some doors)
+      const openN = Math.random() > 0.35 || (r === 0);
+      const openS = Math.random() > 0.35 || (r === rows-1);
+      const openW = Math.random() > 0.35 || (c === 0);
+      const openE = Math.random() > 0.35 || (c === cols-1);
+      // Always connect center path roughly
+      const forceOpen = (r === 1 && c === 1);
+      function wallWithDoor(dx, dy, dz, w, h, d, open) {
+        if (!open && !forceOpen) {
+          makeBox(w, h, d, 0x1e2430, dx, dy, dz, roomRoot);
+        } else {
+          // two segments with gap
+          if (w > d) {
+            makeBox(w * 0.32, h, d, 0x1e2430, dx - w*0.34, dy, dz, roomRoot);
+            makeBox(w * 0.32, h, d, 0x1e2430, dx + w*0.34, dy, dz, roomRoot);
+          } else {
+            makeBox(w, h, d * 0.32, 0x1e2430, dx, dy, dz - d*0.34, roomRoot);
+            makeBox(w, h, d * 0.32, 0x1e2430, dx, dy, dz + d*0.34, roomRoot);
+          }
+        }
+      }
+      // North wall ( -z of cell)
+      if (r === 0) makeBox(cell, wallH, 0.25, 0x1e2430, cx, wallH/2, cz - cell/2, roomRoot);
+      else wallWithDoor(cx, wallH/2, cz - cell/2, cell, wallH, 0.25, openN);
+      // West
+      if (c === 0) makeBox(0.25, wallH, cell, 0x1e2430, cx - cell/2, wallH/2, cz, roomRoot);
+      else wallWithDoor(cx - cell/2, wallH/2, cz, 0.25, wallH, cell, openW);
+
+      // Debris / props
+      if (Math.random() > 0.5) {
+        makeBox(0.8+Math.random()*0.6, 0.4+Math.random()*0.8, 0.6, 0x2a3040,
+          cx + (Math.random()-0.5)*3, 0.4, cz + (Math.random()-0.5)*3, roomRoot);
+      }
+    }
+  }
+  // Outer south & east walls
+  for (let c = 0; c < cols; c++) {
+    const cx = originX + c * cell;
+    makeBox(cell, wallH, 0.25, 0x1e2430, cx, wallH/2, originZ + (rows-0.5)*cell, roomRoot);
+  }
+  for (let r = 0; r < rows; r++) {
+    const cz = originZ + r * cell;
+    makeBox(0.25, wallH, cell, 0x1e2430, originX + (cols-0.5)*cell, wallH/2, cz, roomRoot);
+  }
+
+  // Elevator in center-ish room
+  elevMesh = makeBox(2.2, 3.0, 0.25, 0x3a4050, 0, 1.5, -cell, roomRoot);
+  makeBox(0.9, 2.6, 0.1, 0x4a5568, -0.5, 1.4, -cell+0.15, roomRoot);
+  makeBox(0.9, 2.6, 0.1, 0x4a5568, 0.5, 1.4, -cell+0.15, roomRoot);
+  const el = new THREE.PointLight(0x88aaff, 0.8, 8); el.position.set(0, 2.5, -cell+1); roomRoot.add(el);
+
+  // Crowbar in a random far cell
+  const crowX = originX + 2 * cell + (Math.random()-0.5)*2;
+  const crowZ = originZ + 2 * cell + (Math.random()-0.5)*2;
+  if (!hasCrowbar) {
+    crowbarMesh = makeBox(0.12, 0.12, 1.1, 0x4a4a55, crowX, 0.15, crowZ, roomRoot);
+    crowbarMesh.rotation.y = 0.6;
+    makeBox(0.18, 0.18, 0.25, 0x3a3020, crowX, 0.15, crowZ - 0.5, roomRoot); // handle end
+    const cl = new THREE.PointLight(0xaabbff, 0.5, 5); cl.position.set(crowX, 1, crowZ); roomRoot.add(cl);
+  }
+
+  // Wrong logo fragment
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ff4a6a'; ctx.font = 'bold 36px Courier New, monospace'; ctx.textAlign = 'center';
+  ctx.fillText('MANX CO, LTD', 256, 50);
+  ctx.fillStyle = '#5a6a80'; ctx.font = '22px Courier New, monospace';
+  ctx.fillText('happy to help?', 256, 95);
+  const tp = new THREE.Mesh(new THREE.PlaneGeometry(4, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+  tp.position.set(0, 2.4, originZ - cell/2 + 0.2); roomRoot.add(tp);
+
+  bounds = { minX: originX - cell/2 + 0.5, maxX: originX + (cols-0.5)*cell - 0.5,
+             minZ: originZ - cell/2 + 0.5, maxZ: originZ + (rows-0.5)*cell - 0.5 };
+  camera.position.set(0, 1.6, 0);
+}
+
+function onElevatorFloor(floor) {
+  if (floor === '7') {
+    $('el-note').textContent = 'Key accepted. Descending…';
+    $('fade3d').classList.add('active');
+    setTimeout(() => {
+      $('elevator-ui').classList.remove('visible');
+      buildAttic();
+      $('fade3d').classList.remove('active');
+      showPrompt('Floor 7 attic. You know this place.', 3000);
+    }, 1100);
+  } else if (floor === '1') {
+    if (area === 'attic' || visitedAttic) {
+      $('el-note').textContent = 'Returning to lobby…';
+      $('fade3d').classList.add('active');
+      setTimeout(() => {
+        $('elevator-ui').classList.remove('visible');
+        buildProceduralLobby();
+        $('fade3d').classList.remove('active');
+        showPrompt('The lobby has changed. Find a crowbar.', 3500);
+      }, 1100);
+    } else {
+      $('el-note').textContent = 'Already on Lobby.';
+    }
+  } else {
+    $('el-note').textContent = 'Offices are closed for the welfare check.';
+  }
+}
+
+function tryInteract3D() {
+  if (!interactTarget) return;
+  if (interactTarget === 'elevator') {
+    document.exitPointerLock?.();
+    $('elevator-ui').classList.add('visible');
+    $('el-note').textContent = area === 'attic'
+      ? 'Return to lobby?'
+      : 'Staff key required for restricted floors';
+  } else if (interactTarget === 'desk') {
+    showPrompt('Reception is empty. A screen still shows: happy to help!', 2800);
+  } else if (interactTarget === 'note') {
+    showPrompt('Note: "They moved me to Peripheral. Don\'t trust them. — K.M."', 4000);
+  } else if (interactTarget === 'deadpc') {
+    showPrompt('The terminal is dead. Dust in the vents. Screen cracked.', 3000);
+  } else if (interactTarget === 'hatch') {
+    if (hasCrowbar) {
+      showPrompt('You force the hatch. Daylight — and a way further up. (To be continued)', 4000);
+    } else {
+      showPrompt('Hatch is jammed shut. You need a crowbar.', 3000);
+    }
+  } else if (interactTarget === 'crowbar') {
+    hasCrowbar = true;
+    if (crowbarMesh) crowbarMesh.visible = false;
+    crowbarMesh = null;
+    $('hud-item').textContent = 'ITEM: CROWBAR';
+    showPrompt('Crowbar taken. Return to Floor 7.', 3000);
+  }
+}
+
+function setupMobile3D() {
+  const zone = $('joy3d'), stick = $('stick3d');
+  function handle(e) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const r = zone.getBoundingClientRect();
+    let dx = t.clientX - (r.left + r.width/2);
+    let dy = t.clientY - (r.top + r.height/2);
+    const max = 38, len = Math.sqrt(dx*dx+dy*dy);
+    if (len > max) { dx = dx/len*max; dy = dy/len*max; }
+    stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    mobile.moveX = dx/max; mobile.moveY = dy/max;
+  }
+  function end() { stick.style.transform = 'translate(-50%,-50%)'; mobile.moveX=0; mobile.moveY=0; }
+  zone.addEventListener('touchstart', handle, {passive:false});
+  zone.addEventListener('touchmove', handle, {passive:false});
+  zone.addEventListener('touchend', end);
+  $('interact3d').addEventListener('touchstart', e => { e.preventDefault(); tryInteract3D(); }, {passive:false});
+  document.addEventListener('touchstart', e => {
+    for (const t of e.changedTouches) {
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el && (el.closest('#joy3d') || el.closest('#interact3d') || el.closest('#elevator-panel'))) continue;
+      if (touchLookId === null) { touchLookId = t.identifier; touchLookLast = { x:t.clientX, y:t.clientY }; }
+    }
+  }, {passive:true});
+  document.addEventListener('touchmove', e => {
+    if (touchLookId === null) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier !== touchLookId) continue;
+      mobile.lookDX += t.clientX - touchLookLast.x;
+      mobile.lookDY += t.clientY - touchLookLast.y;
+      touchLookLast = { x:t.clientX, y:t.clientY };
+    }
+  }, {passive:true});
+  document.addEventListener('touchend', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchLookId) { touchLookId = null; touchLookLast = null; }
+    }
+  });
+}
+
+function animateWorld() {
+  requestAnimationFrame(animateWorld);
+  if (!worldReady || !camera) return;
+  if ($('elevator-ui').classList.contains('visible')) {
+    renderer.render(scene, camera); return;
+  }
+  const delta = Math.min(clock.getDelta(), 0.05);
+
+  if (isTouch && (mobile.lookDX || mobile.lookDY)) {
+    euler.setFromQuaternion(camera.quaternion);
+    euler.y -= mobile.lookDX * 0.0045;
+    euler.x -= mobile.lookDY * 0.0045;
+    euler.x = Math.max(-1.2, Math.min(1.2, euler.x));
+    camera.quaternion.setFromEuler(euler);
+    mobile.lookDX = 0; mobile.lookDY = 0;
+  }
+
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+  const speed = 5.2 * delta;
+  let mx = 0, mz = 0;
+  if (!isTouch && pointerLocked) {
+    if (keys3.w) { mx += forward.x; mz += forward.z; }
+    if (keys3.s) { mx -= forward.x; mz -= forward.z; }
+    if (keys3.a) { mx -= right.x; mz -= right.z; }
+    if (keys3.d) { mx += right.x; mz += right.z; }
+  } else if (isTouch) {
+    mx = forward.x * (-mobile.moveY) + right.x * mobile.moveX;
+    mz = forward.z * (-mobile.moveY) + right.z * mobile.moveX;
+  }
+  const len = Math.sqrt(mx*mx+mz*mz);
+  if (len > 0.01) {
+    camera.position.x += (mx/len) * speed;
+    camera.position.z += (mz/len) * speed;
+  }
+  camera.position.y = 1.6;
+  camera.position.x = Math.max(bounds.minX, Math.min(bounds.maxX, camera.position.x));
+  camera.position.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, camera.position.z));
+
+  interactTarget = null;
+  let prompt = '';
+  const dist = (m) => m ? camera.position.distanceTo(m.position) : 999;
+  if (elevMesh && dist(elevMesh) < 3.2) {
+    interactTarget = 'elevator';
+    prompt = isTouch ? 'TAP E  Elevator' : 'E  Elevator';
+  } else if (deskMesh && dist(deskMesh) < 3.0) {
+    interactTarget = 'desk';
+    prompt = isTouch ? 'TAP E  Desk' : 'E  Inspect desk';
+  } else if (noteMesh && dist(noteMesh) < 2.2) {
+    interactTarget = 'note';
+    prompt = isTouch ? 'TAP E  Read note' : 'E  Read note';
+  } else if (deadPCMesh && dist(deadPCMesh) < 2.4) {
+    interactTarget = 'deadpc';
+    prompt = isTouch ? 'TAP E  Old computer' : 'E  Inspect computer';
+  } else if (hatchMesh && dist(hatchMesh) < 3.0 && Math.abs(camera.position.x - hatchMesh.position.x) < 1.5) {
+    interactTarget = 'hatch';
+    prompt = hasCrowbar
+      ? (isTouch ? 'TAP E  Force hatch' : 'E  Force hatch open')
+      : (isTouch ? 'TAP E  Jammed hatch' : 'E  Inspect hatch');
+  } else if (crowbarMesh && crowbarMesh.visible && dist(crowbarMesh) < 2.5) {
+    interactTarget = 'crowbar';
+    prompt = isTouch ? 'TAP E  Take crowbar' : 'E  Take crowbar';
+  }
+
+  if (performance.now() > promptLockUntil) {
+    if (interactTarget) {
+      $('prompt3d').textContent = prompt;
+      $('prompt3d').style.display = 'block';
+    } else {
+      $('prompt3d').style.display = 'none';
+    }
+  }
+  if (isTouch) $('interact3d').classList.toggle('visible', !!interactTarget);
+
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
